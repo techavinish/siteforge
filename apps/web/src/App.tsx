@@ -253,7 +253,7 @@ export default function App() {
             placeholder={busy ? "Working…" : "Describe your business…"}
             disabled={busy}
           />
-          <button className="primary" onClick={send} disabled={busy || !input.trim()}>
+          <button className="primary" onClick={() => send()} disabled={busy || !input.trim()}>
             Send
           </button>
         </footer>
