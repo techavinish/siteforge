@@ -37,7 +37,9 @@ def current_user(request: Request) -> dict:
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    import os
+
+    return {"ok": True, "rev": os.environ.get("GIT_SHA", "local")}
 
 
 @app.get("/api/me")

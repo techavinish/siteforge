@@ -34,5 +34,6 @@ jobs:
       - run: |
           gcloud run deploy gateway \
             --image "$IMAGE:${{ github.sha }}" \
+            --update-env-vars "GIT_SHA=${{ github.sha }}" \
             --region asia-south1 \
             --project siteforge-dev-3977
