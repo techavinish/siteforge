@@ -19,6 +19,7 @@ type Msg = {
 const PHASE_LABEL: Record<string, string> = {
   thinking: "Thinking…",
   planning: "Planning your site…",
+  illustrating: "Finding photos…",
   writing: "Writing pages…",
   critiquing: "Reviewing quality…",
 };
@@ -576,9 +577,10 @@ export default function App() {
           <button className="jump-down" onClick={scrollToBottom} aria-label="Jump to latest">
             <svg
               width="18" height="18" viewBox="0 0 24 24" fill="none"
-              stroke="var(--accent)" strokeWidth="2.6"
-              strokeLinecap="round" strokeLinejoin="round"
-              style={{ display: "block" }}
+              strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
+              // css vars don't resolve in svg ATTRIBUTES — only in style/CSS.
+              // stroke as an attribute fell back to black-on-black.
+              style={{ display: "block", stroke: "var(--accent)" }}
             >
               <path d="M6 9l6 6 6-6" />
             </svg>

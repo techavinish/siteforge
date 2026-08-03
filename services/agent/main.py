@@ -167,6 +167,7 @@ class ChatIn(BaseModel):
 NODE_LABELS = {
     "understand": "Understanding your business",
     "plan": "Designing the site structure",
+    "illustrate": "Finding photos",
     "write": "Writing page copy",
     "review": "Reviewing quality",
 }

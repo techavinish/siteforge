@@ -12,7 +12,9 @@ from typing import Annotated, Literal
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-Phase = Literal["thinking", "interviewing", "planning", "writing", "critiquing", "done"]
+Phase = Literal[
+    "thinking", "interviewing", "planning", "illustrating", "writing", "critiquing", "done"
+]
 
 
 class AgentState(TypedDict):

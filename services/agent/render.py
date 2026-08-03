@@ -34,7 +34,12 @@ PAGE = Template("""<!doctype html>
   nav a { color: #444; text-decoration: none; font-size: 0.85rem; padding-bottom: 2px; border-bottom: 2px solid transparent; }
   nav a:hover { color: var(--accent); }
   nav a.on { color: var(--accent); border-bottom-color: var(--accent); }
-  main { max-width: 860px; margin: 0 auto; padding: 56px clamp(20px, 5vw, 40px) 80px; }
+  main { max-width: 860px; margin: 0 auto; padding: 40px clamp(20px, 5vw, 40px) 80px; }
+  .hero-img {
+    margin: 0 0 36px; border-radius: 16px; overflow: hidden;
+    aspect-ratio: 21 / 9; background: #f3f3f3;
+  }
+  .hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
   h1, h2, h3 { font-family: "$head_font", serif; line-height: 1.12; }
   h1 { font-size: clamp(2.2rem, 5.5vw, 3.4rem); letter-spacing: -0.015em; margin: 0.3em 0; }
   h1 + p strong { font-size: 1.15rem; color: #555; font-weight: 600; }
@@ -57,8 +62,8 @@ PAGE = Template("""<!doctype html>
 </head>
 <body>
 <header><span class="brand">$site_name</span><nav>$nav</nav></header>
-<main>$body</main>
-<footer>© $year $site_name · Built with SiteForge</footer>
+<main>$hero$body</main>
+<footer>© $year $site_name · Built with SiteForge$photo_credit</footer>
 $nav_script
 </body>
 </html>""")
@@ -99,6 +104,16 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
     active = next((p for p in page_list if p["path"] == path), None)
     title = f"{active['title']} — {site_name}" if active and path != "/" else site_name
 
+    # real photography from the illustrate node, when present
+    hero = ""
+    image = (active or {}).get("image")
+    if image:
+        hero = (
+            f'<div class="hero-img"><img src="{image["url"]}" '
+            f'alt="{image.get("alt", "")}" loading="lazy"></div>'
+        )
+    any_photos = any(p.get("image") for p in page_list)
+
     return PAGE.substitute(
         title=title,
         fonts_query=fonts_query,
@@ -110,4 +125,6 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
         body=md.markdown(pages.get(path, ""), extensions=["extra"]),
         year=datetime.now(timezone.utc).year,
         nav_script="" if mode == "live" else PREVIEW_NAV_SCRIPT,
+        hero=hero,
+        photo_credit=" · Photos via Pexels" if any_photos else "",
     )

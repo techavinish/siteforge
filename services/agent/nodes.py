@@ -99,6 +99,24 @@ def plan(state: AgentState) -> dict:
     return {"spec": spec, "phase": "planning"}
 
 
+def illustrate(state: AgentState) -> dict:
+    """Deterministic node — no LLM. Every page gets a real photo matched to
+    the business and the page's purpose. Failures degrade to no image."""
+    from images import find_image
+
+    spec = dict(state["spec"])
+    business = state["brief"].get("business_type", "business")
+    pages = []
+    for page in spec.get("pages", []):
+        p = dict(page)
+        img = find_image(f"{business} {p.get('purpose') or p.get('title', '')}")
+        if img:
+            p["image"] = img
+        pages.append(p)
+    spec["pages"] = pages
+    return {"spec": spec, "phase": "illustrating"}
+
+
 WRITE_SYSTEM = """You are a copywriter for small-business websites. Write the FINAL
 copy for ONE page as clean Markdown that renders directly as the website:
 

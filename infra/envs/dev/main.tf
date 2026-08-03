@@ -47,6 +47,7 @@ module "agent" {
   secret_env = {
     DB_PASS            = "db-password"
     OPENROUTER_API_KEY = "openrouter-api-key"
+    PEXELS_API_KEY     = "pexels-api-key"
   }
 
   depends_on = [google_project_service.enabled]
@@ -59,9 +60,15 @@ resource "google_project_iam_member" "runtime_hosting_admin" {
   member  = "serviceAccount:${google_service_account.app_runtime.email}"
 }
 
-# the openrouter secret was created via gcloud — terraform only manages access
+# these secrets were created via gcloud — terraform only manages access
 resource "google_secret_manager_secret_iam_member" "runtime_reads_openrouter" {
   secret_id = "openrouter-api-key"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.app_runtime.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "runtime_reads_pexels" {
+  secret_id = "pexels-api-key"
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.app_runtime.email}"
 }

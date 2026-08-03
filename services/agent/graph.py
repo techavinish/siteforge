@@ -21,7 +21,7 @@ Two ideas to notice:
 
 from langgraph.graph import END, START, StateGraph
 
-from nodes import critique, deliver, plan, respond, understand, write
+from nodes import critique, deliver, illustrate, plan, respond, understand, write
 from state import AgentState
 
 
@@ -41,6 +41,7 @@ def build_graph(checkpointer=None):
     g.add_node("understand", understand)
     g.add_node("respond", respond)
     g.add_node("plan", plan)
+    g.add_node("illustrate", illustrate)
     g.add_node("write", write)
     # node named "review" (not "critique") — LangGraph forbids a node name
     # that shadows a state key
@@ -50,7 +51,8 @@ def build_graph(checkpointer=None):
     g.add_edge(START, "understand")
     g.add_edge("understand", "respond")
     g.add_conditional_edges("respond", after_respond, {"plan": "plan", END: END})
-    g.add_edge("plan", "write")
+    g.add_edge("plan", "illustrate")
+    g.add_edge("illustrate", "write")
     g.add_edge("write", "review")
     g.add_conditional_edges("review", after_critique, {"write": "write", "deliver": "deliver"})
     g.add_edge("deliver", END)
