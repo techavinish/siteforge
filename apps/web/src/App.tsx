@@ -154,7 +154,13 @@ export default function App() {
     }
   }
 
-  if (loading) return <main className="shell">Loading…</main>;
+  if (loading) {
+    return (
+      <div className="boot">
+        <span className="spinner lg" />
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -205,8 +211,8 @@ export default function App() {
           )}
           {busy && (
             <div className="working-row">
-              <span className="spinner" />
-              {phase && PHASE_LABEL[phase] ? PHASE_LABEL[phase] : "Thinking…"}
+              <span className="dots"><i /><i /><i /></span>
+              {phase && PHASE_LABEL[phase] && <span className="phase-tag">{PHASE_LABEL[phase]}</span>}
             </div>
           )}
           <div ref={bottomRef} />

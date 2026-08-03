@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { User } from "firebase/auth";
+import { IconLogout, IconPanel, IconPlus, IconSearch, IconX } from "./icons";
 
 export type ChatMeta = { thread_id: string; title: string; updated_at: string };
 
@@ -33,8 +34,12 @@ export default function Sidebar({
   if (collapsed) {
     return (
       <nav className="sidebar collapsed">
-        <button className="icon-btn" onClick={onToggle} title="Open sidebar">☰</button>
-        <button className="icon-btn accent" onClick={onNew} title="New chat">+</button>
+        <button className="icon-btn" onClick={onToggle} title="Open sidebar">
+          <IconPanel />
+        </button>
+        <button className="icon-btn accent" onClick={onNew} title="New chat">
+          <IconPlus />
+        </button>
       </nav>
     );
   }
@@ -43,17 +48,19 @@ export default function Sidebar({
     <nav className="sidebar">
       <div className="side-head">
         <span className="logo">SiteForge</span>
-        <button className="icon-btn" onClick={onToggle} title="Collapse sidebar">⟨</button>
+        <button className="icon-btn" onClick={onToggle} title="Collapse sidebar">
+          <IconPanel />
+        </button>
       </div>
 
-      <button className="new-chat" onClick={onNew}>+ New chat</button>
+      <button className="new-chat" onClick={onNew}>
+        <IconPlus />
+        <span>New chat</span>
+      </button>
 
       <div className="side-search">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search chats…"
-        />
+        <span className="search-ico"><IconSearch /></span>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search chats" />
       </div>
 
       <div className="chat-list">
@@ -63,14 +70,14 @@ export default function Sidebar({
               {c.title}
             </button>
             <button
-              className="chat-del"
+              className="icon-btn chat-del"
               title="Delete chat"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete(c.thread_id);
               }}
             >
-              ×
+              <IconX />
             </button>
           </div>
         ))}
@@ -82,7 +89,9 @@ export default function Sidebar({
       <div className="side-foot">
         {user.photoURL && <img className="avatar sm" src={user.photoURL} alt="" />}
         <span className="muted foot-mail">{user.email}</span>
-        <button className="ghost" onClick={onSignOut} title="Sign out">↩</button>
+        <button className="icon-btn" onClick={onSignOut} title="Sign out">
+          <IconLogout />
+        </button>
       </div>
     </nav>
   );
