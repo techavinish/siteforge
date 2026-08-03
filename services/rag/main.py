@@ -25,6 +25,18 @@ class SearchIn(BaseModel):
     k: int = 3
 
 
+class IngestIn(BaseModel):
+    source: str
+    chunks: list[str]
+
+
+@app.post("/rag/ingest")
+def ingest(body: IngestIn):
+    """Used by the eval flywheel to promote platinum examples."""
+    n = store.replace_source(body.source, body.chunks)
+    return {"ingested": n}
+
+
 @app.get("/healthz")
 def healthz():
     return {"ok": True}

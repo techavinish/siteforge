@@ -507,8 +507,36 @@ def publish(thread_id: str, uid: str = Depends(current_uid)):
 
 
 @app.post("/agent/chat")
+def _rate_limit(uid: str) -> None:
+    """Per-user daily message cap in Redis (design-review cost guardrail).
+    Redis down = no limiting, never an outage."""
+    import datetime
+
+    limit = int(os.environ.get("CHAT_DAILY_LIMIT", "100"))
+    try:
+        import redis
+
+        r = redis.Redis.from_url(
+            os.environ.get("REDIS_URL", "redis://localhost:6379"), socket_timeout=2
+        )
+        key = f"rl:{uid}:{datetime.date.today().isoformat()}"
+        count = r.incr(key)
+        if count == 1:
+            r.expire(key, 90000)  # a bit over a day
+        if count > limit:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily limit of {limit} messages reached — resets at midnight.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
+
 def chat(body: ChatIn, uid: str = Depends(current_uid)):
     own_thread(body.thread_id, uid)
+    _rate_limit(uid)
     config = {"configurable": {"thread_id": body.thread_id}, **_trace_config(body.thread_id, uid)}
 
     # bump recency; the title is LLM-generated after the reply streams

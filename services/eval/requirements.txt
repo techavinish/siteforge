@@ -1,0 +1,6 @@
+fastapi==0.115.*
+uvicorn[standard]==0.32.*
+requests==2.*
+psycopg[binary]==3.2.*
+google-auth==2.*
+sentry-sdk[fastapi]==2.*

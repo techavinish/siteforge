@@ -50,6 +50,17 @@ def generate_draft(thread_id: str) -> dict:
 
 
 @activity.defn
+def run_evaluation() -> dict:
+    """Triggers the eval service — checks + judge + medallion + platinum."""
+    import requests
+
+    eval_url = os.environ.get("EVAL_URL", "http://localhost:8004")
+    r = requests.post(f"{eval_url}/eval/run", timeout=600)
+    r.raise_for_status()
+    return r.json()
+
+
+@activity.defn
 def publish_draft(thread_id: str) -> str:
     """Renders and releases the site — same code path as the Publish button."""
     from langgraph.checkpoint.postgres import PostgresSaver

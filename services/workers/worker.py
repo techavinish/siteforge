@@ -9,8 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from activities import generate_draft, publish_draft
-from workflows import GenerateSiteWorkflow
+from activities import generate_draft, publish_draft, run_evaluation
+from workflows import EvaluateSitesWorkflow, GenerateSiteWorkflow
 
 TEMPORAL_ADDRESS = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
 TASK_QUEUE = "siteforge"
@@ -22,8 +22,8 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue=TASK_QUEUE,
-        workflows=[GenerateSiteWorkflow],
-        activities=[generate_draft, publish_draft],
+        workflows=[GenerateSiteWorkflow, EvaluateSitesWorkflow],
+        activities=[generate_draft, publish_draft, run_evaluation],
         # our activities are sync functions — they run in this thread pool
         activity_executor=ThreadPoolExecutor(max_workers=4),
     )

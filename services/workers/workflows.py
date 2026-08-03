@@ -58,3 +58,17 @@ class GenerateSiteWorkflow:
     @workflow.query
     def status(self) -> str:
         return self.stage
+
+
+@workflow.defn
+class EvaluateSitesWorkflow:
+    """The eval flywheel on the same orchestrator that runs generation —
+    scheduled daily, retried like everything else."""
+
+    @workflow.run
+    async def run(self) -> dict:
+        return await workflow.execute_activity(
+            "run_evaluation",
+            start_to_close_timeout=timedelta(minutes=15),
+            retry_policy=RetryPolicy(maximum_attempts=3),
+        )
