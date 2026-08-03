@@ -10,7 +10,9 @@ resumed conversation, from any client, after any restart.
 """
 
 import json
+import uuid
 
+import psycopg
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -27,10 +29,58 @@ saver = saver_cm.__enter__()
 saver.setup()
 graph = build_graph(checkpointer=saver)
 
+# conversation index — the checkpointer stores state PER thread but can't
+# answer "which threads belong to this user", so we keep our own registry
+with psycopg.connect(DATABASE_URL) as _conn:
+    _conn.execute("""
+        CREATE TABLE IF NOT EXISTS chats (
+            thread_id  text PRIMARY KEY,
+            uid        text NOT NULL,
+            title      text,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now()
+        )""")
+    _conn.execute("CREATE INDEX IF NOT EXISTS ix_chats_uid ON chats (uid, updated_at DESC)")
+    _conn.commit()
+
 
 class ChatIn(BaseModel):
     thread_id: str
     message: str
+
+
+class NewChatIn(BaseModel):
+    uid: str
+
+
+@app.post("/agent/chats")
+def create_chat(body: NewChatIn):
+    thread_id = f"c-{uuid.uuid4().hex[:12]}"
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute("INSERT INTO chats (thread_id, uid) VALUES (%s, %s)", (thread_id, body.uid))
+        conn.commit()
+    return {"thread_id": thread_id}
+
+
+@app.get("/agent/chats")
+def list_chats(uid: str):
+    with psycopg.connect(DATABASE_URL) as conn:
+        rows = conn.execute(
+            "SELECT thread_id, title, updated_at FROM chats WHERE uid=%s ORDER BY updated_at DESC",
+            (uid,),
+        ).fetchall()
+    return [{"thread_id": r[0], "title": r[1] or "New chat", "updated_at": r[2].isoformat()} for r in rows]
+
+
+@app.get("/agent/chats/{thread_id}/messages")
+def chat_messages(thread_id: str):
+    state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
+    out = []
+    for m in state.get("messages", []):
+        role = "user" if m.type == "human" else "agent"
+        if m.content:
+            out.append({"role": role, "text": m.content})
+    return out
 
 
 @app.get("/healthz")
@@ -54,6 +104,14 @@ def draft(thread_id: str):
 @app.post("/agent/chat")
 def chat(body: ChatIn):
     config = {"configurable": {"thread_id": body.thread_id}}
+
+    # first message becomes the chat title; every turn bumps recency
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute(
+            "UPDATE chats SET title = COALESCE(title, %s), updated_at = now() WHERE thread_id = %s",
+            (body.message[:60], body.thread_id),
+        )
+        conn.commit()
 
     def events():
         for update in graph.stream(

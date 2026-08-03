@@ -1,21 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
+import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
 import Preview, { type Draft } from "./Preview";
+import Sidebar, { type ChatMeta } from "./Sidebar";
 
 type Msg = { role: "user" | "agent"; text: string };
 
 const PHASE_LABEL: Record<string, string> = {
-  interviewing: "Interviewing",
   planning: "Planning your site…",
   writing: "Writing pages…",
   critiquing: "Reviewing quality…",
-  done: "Draft ready",
 };
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chats, setChats] = useState<ChatMeta[]>([]);
+  const [thread, setThread] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<string | null>(null);
@@ -23,26 +25,65 @@ export default function App() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const loadChats = useCallback(async (u: User) => {
+    const list: ChatMeta[] = await fetch(`/agent/chats?uid=${u.uid}`).then((r) => r.json());
+    setChats(list);
+    return list;
+  }, []);
+
+  const openThread = useCallback(async (id: string) => {
+    setThread(id);
+    setPhase(null);
+    const [history, d] = await Promise.all([
+      fetch(`/agent/chats/${id}/messages`).then((r) => r.json()),
+      fetch(`/agent/draft/${id}`).then((r) => r.json()),
+    ]);
+    setMsgs(history);
+    setDraft(d?.pages && Object.keys(d.pages).length ? d : null);
+  }, []);
+
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
+    return onAuthStateChanged(auth, async (u) => {
       setUser(u);
       setLoading(false);
-      // returning user: restore an existing draft from the checkpoint
       if (u) {
-        fetch(`/agent/draft/u-${u.uid}`)
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d) => d?.pages && Object.keys(d.pages).length && setDraft(d))
-          .catch(() => {});
+        const list = await loadChats(u);
+        if (list.length) openThread(list[0].thread_id);
       }
     });
-  }, []);
+  }, [loadChats, openThread]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, phase]);
 
+  async function newChat() {
+    if (!user) return;
+    const { thread_id } = await fetch("/agent/chats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid: user.uid }),
+    }).then((r) => r.json());
+    await loadChats(user);
+    setThread(thread_id);
+    setMsgs([]);
+    setDraft(null);
+    setPhase(null);
+  }
+
   async function send() {
     if (!user || !input.trim() || busy) return;
+    let tid = thread;
+    if (!tid) {
+      const created = await fetch("/agent/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user.uid }),
+      }).then((r) => r.json());
+      tid = created.thread_id;
+      setThread(tid);
+    }
+
     const text = input.trim();
     setInput("");
     setMsgs((m) => [...m, { role: "user", text }]);
@@ -52,11 +93,8 @@ export default function App() {
       const token = await user.getIdToken();
       const res = await fetch("/agent/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ thread_id: `u-${user.uid}`, message: text }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ thread_id: tid, message: text }),
       });
       if (!res.ok || !res.body) throw new Error(`agent said ${res.status}`);
 
@@ -81,10 +119,11 @@ export default function App() {
           }
         }
       }
-      if (finished) {
-        const d = await fetch(`/agent/draft/u-${user.uid}`).then((r) => r.json());
+      if (finished && tid) {
+        const d = await fetch(`/agent/draft/${tid}`).then((r) => r.json());
         setDraft(d);
       }
+      await loadChats(user);
     } catch (e) {
       setMsgs((m) => [
         ...m,
@@ -92,6 +131,7 @@ export default function App() {
       ]);
     } finally {
       setBusy(false);
+      setPhase(null);
     }
   }
 
@@ -110,26 +150,42 @@ export default function App() {
   }
 
   return (
-    <div className={draft ? "workspace with-preview" : "workspace"}>
-      <main className="chat-shell">
-        <header className="bar">
-          <strong>SiteForge</strong>
-          <span className="muted">{user.email}</span>
-          <button onClick={() => signOut(auth)}>Sign out</button>
-        </header>
+    <div className={draft ? "workspace three" : "workspace two"}>
+      <Sidebar
+        chats={chats}
+        active={thread}
+        user={user}
+        onSelect={openThread}
+        onNew={newChat}
+        onSignOut={() => signOut(auth)}
+      />
 
+      <main className="chat-shell">
         <section className="chat">
           {msgs.length === 0 && (
-            <p className="muted intro">
-              Tell me about your business and I'll build its website — try:
-              <em> “I run a bakery in Jaipur and need a site with online enquiries.”</em>
-            </p>
+            <div className="hero-empty">
+              <h2>What are we building today?</h2>
+              <p className="muted">
+                Describe your business — I'll interview you, then design and write your website.
+              </p>
+            </div>
           )}
-          {msgs.map((m, i) => (
-            <div key={i} className={`bubble ${m.role}`}>{m.text}</div>
-          ))}
-          {busy && phase && phase !== "interviewing" && (
-            <div className="bubble agent working">{PHASE_LABEL[phase] ?? phase}</div>
+          {msgs.map((m, i) =>
+            m.role === "user" ? (
+              <div key={i} className="bubble user">{m.text}</div>
+            ) : (
+              <div
+                key={i}
+                className="agent-md"
+                dangerouslySetInnerHTML={{ __html: marked.parse(m.text, { async: false }) as string }}
+              />
+            ),
+          )}
+          {busy && (
+            <div className="working-row">
+              <span className="spinner" />
+              {phase && PHASE_LABEL[phase] ? PHASE_LABEL[phase] : "Thinking…"}
+            </div>
           )}
           <div ref={bottomRef} />
         </section>
