@@ -58,7 +58,9 @@ def interview(state: AgentState) -> dict:
 PLAN_SYSTEM = """You are a web strategist. Given a business brief, design a small
 website. Respond with ONLY JSON:
 {"site_name": str,
- "theme": {"mood": str, "primary_color": str},
+ "theme": {"mood": str, "primary_color": "#RRGGBB hex chosen to fit THIS brand's
+  industry and tone — e.g. warm terracotta for a bakery, deep espresso for a
+  coffee bar, calm sage for a yoga studio. Never a generic default blue."},
  "pages": [{"path": "/", "title": str, "purpose": str, "sections": [str, ...]}, ...]}
 3 to 5 pages. Always include "/" (home) and a contact page."""
 
