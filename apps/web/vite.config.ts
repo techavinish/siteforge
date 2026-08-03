@@ -9,6 +9,7 @@ export default defineConfig({
     // Hosting rewrites will route /api to Cloud Run instead
     proxy: {
       "/api": "http://localhost:8000",
+      "/agent": "http://localhost:8001",
     },
   },
 });
