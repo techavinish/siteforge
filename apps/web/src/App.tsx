@@ -4,7 +4,7 @@ import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
 import { authFetch, idToken, setAuthUser } from "./api";
 import ConfirmModal from "./ConfirmModal";
-import { IconArrowUp, IconChevronDown, IconGlobe, IconStop } from "./icons";
+import { IconArrowUp, IconGlobe, IconStop } from "./icons";
 import Preview, { type Draft } from "./Preview";
 import Sidebar, { type ChatMeta } from "./Sidebar";
 import Thinking, { type ThinkBlock } from "./Thinking";
@@ -46,6 +46,18 @@ const STARTER_POOL = [
 function pickStarters() {
   return [...STARTER_POOL].sort(() => Math.random() - 0.5).slice(0, 4);
 }
+
+// the welcome headline cycles through what SiteForge can build
+const BUILD_WORDS = [
+  "a coffee bar",
+  "a bakery",
+  "a yoga studio",
+  "a gym",
+  "a photo portfolio",
+  "a restaurant",
+  "a salon",
+  "your business",
+];
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -98,6 +110,15 @@ export default function App() {
   const chatRef = useRef<HTMLElement>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [positioning, setPositioning] = useState(false);
+  const [wordIdx, setWordIdx] = useState(0);
+
+  // rotate the welcome headline only while the welcome screen is visible
+  const onWelcome = msgs.length === 0 && !busy;
+  useEffect(() => {
+    if (!onWelcome) return;
+    const t = setInterval(() => setWordIdx((i) => (i + 1) % BUILD_WORDS.length), 2200);
+    return () => clearInterval(t);
+  }, [onWelcome]);
 
   function onChatScroll() {
     const el = chatRef.current;
@@ -459,6 +480,11 @@ export default function App() {
       )}
 
       <main className="chat-shell">
+        {collapsed && thread && (
+          <div className="chat-top" title={chats.find((c) => c.thread_id === thread)?.title}>
+            {chats.find((c) => c.thread_id === thread)?.title ?? ""}
+          </div>
+        )}
         <section
           className={positioning ? "chat positioning" : "chat"}
           ref={chatRef}
@@ -466,9 +492,14 @@ export default function App() {
         >
           {msgs.length === 0 && (
             <div className="hero-empty">
-              <h2>What are we building today?</h2>
+              <h2>
+                Let's build{" "}
+                <span key={wordIdx} className="rotate-word">{BUILD_WORDS[wordIdx]}</span>
+              </h2>
               <p className="muted">
-                Describe your business — I'll interview you, then design and write your website.
+                Tell me about your business in one sentence. I'll ask a couple of
+                smart questions, then design the pages, write every word, and put
+                your website live on the internet — in minutes.
               </p>
               <div className="chips">
                 {starters.map((s) => (
@@ -522,7 +553,13 @@ export default function App() {
 
         {!atBottom && msgs.length > 0 && (
           <button className="jump-down" onClick={scrollToBottom} aria-label="Jump to latest">
-            <IconChevronDown />
+            <svg
+              width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.4"
+              strokeLinecap="round" strokeLinejoin="round"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
           </button>
         )}
 

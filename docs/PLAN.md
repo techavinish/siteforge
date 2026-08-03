@@ -24,10 +24,10 @@
 - [x] Chat UI wired to agent SSE — full protocol: thinking deltas, tokens, suggestions, error events; multi-chat, rename/delete, URL routing, stop, smart scrolling
 - [x] Message store: agent-owned `chats` + `messages` tables (thinking + artifacts persisted per message)
 - [x] `deploy_site` — Publish button → per-business Firebase Hosting site (VERIFIED LIVE: sf-sweet-rani-bakery-120d.web.app); `publish.py` is the SiteDeployer seam for the 36-site cap
-- [ ] Deploy agent service to Cloud Run (needs Cloud SQL unix-socket + secret env support in the terraform module) + verify ID tokens on agent endpoints
-- [ ] Hosting rewrite `/agent/**` → agent service
+- [x] Agent on Cloud Run: firebase ID token verification on every endpoint (identity from token, ownership checks), module gained `secret_env` + `cloudsql_instances`, secrets injected from Secret Manager, unix-socket to Cloud SQL, `deploy-agent.yml` CI
+- [x] Hosting rewrite `/agent/**` → agent service — hosted app fully functional end to end
 - [ ] `pick_images` tool (stock photo API) + logo into render pipeline
-- [ ] Mirror drafts into Cloud SQL `sites` / `site_versions` tables
+- [ ] Mirror drafts into Cloud SQL `sites` / `site_versions` tables (agent tables now live IN Cloud SQL for the hosted path; local docker pg for dev)
 
 ## Key decisions (and why)
 

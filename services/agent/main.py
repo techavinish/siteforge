@@ -95,6 +95,61 @@ with psycopg.connect(DATABASE_URL) as _conn:
     _conn.commit()
 
 
+def _mirror_draft(thread_id: str, uid: str) -> None:
+    """Mirror the finished draft into the product schema (users/projects/
+    sites/site_versions) — append-only versioning, rollback = pointer move.
+    Best-effort: a mirror failure must never break the chat stream."""
+    try:
+        state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
+        spec, pages, brief = state.get("spec", {}), state.get("pages", {}), state.get("brief", {})
+        if not pages:
+            return
+        with psycopg.connect(DATABASE_URL) as conn:
+            conn.execute(
+                "INSERT INTO users (uid, email) VALUES (%s, '') ON CONFLICT (uid) DO NOTHING",
+                (uid,),
+            )
+            brief_doc = json.dumps({**brief, "thread_id": thread_id})
+            row = conn.execute(
+                "SELECT id FROM projects WHERE owner_uid=%s AND business_brief->>'thread_id'=%s",
+                (uid, thread_id),
+            ).fetchone()
+            if row:
+                project_id = row[0]
+                conn.execute(
+                    "UPDATE projects SET name=%s, business_brief=%s, updated_at=now() WHERE id=%s",
+                    (spec.get("site_name", "Untitled"), brief_doc, project_id),
+                )
+            else:
+                project_id = conn.execute(
+                    "INSERT INTO projects (owner_uid, name, business_brief) VALUES (%s,%s,%s) RETURNING id",
+                    (uid, spec.get("site_name", "Untitled"), brief_doc),
+                ).fetchone()[0]
+
+            row = conn.execute(
+                "SELECT id FROM sites WHERE project_id=%s", (project_id,)
+            ).fetchone()
+            site_id = row[0] if row else conn.execute(
+                "INSERT INTO sites (project_id, status) VALUES (%s, 'draft') RETURNING id",
+                (project_id,),
+            ).fetchone()[0]
+
+            version = conn.execute(
+                "SELECT COALESCE(MAX(version), 0) + 1 FROM site_versions WHERE site_id=%s",
+                (site_id,),
+            ).fetchone()[0]
+            version_id = conn.execute(
+                "INSERT INTO site_versions (site_id, version, spec, pages) VALUES (%s,%s,%s,%s) RETURNING id",
+                (site_id, version, json.dumps(spec), json.dumps(pages)),
+            ).fetchone()[0]
+            conn.execute(
+                "UPDATE sites SET current_version_id=%s WHERE id=%s", (version_id, site_id)
+            )
+            conn.commit()
+    except Exception:
+        pass
+
+
 def _save_message(thread_id: str, role: str, content: str, thinking=None, attachment=None):
     with psycopg.connect(DATABASE_URL) as conn:
         conn.execute(
@@ -461,6 +516,7 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
                                 thinking=think_acc or None, attachment="site",
                             )
                             think_acc = []
+                            _mirror_draft(body.thread_id, uid)
                 yield f"event: node\ndata: {json.dumps(payload)}\n\n"
 
         final = graph.get_state(config).values
