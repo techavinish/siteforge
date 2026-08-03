@@ -356,20 +356,23 @@ button.primary:disabled { opacity: 0.45; }
   contain-intrinsic-size: auto 64px;
 }
 .jump-down {
-  /* centered without transform, so entrance animation can't cancel it */
+  /* no circle — just the arrow, per design */
   position: absolute; bottom: 96px; left: 0; right: 0; margin-inline: auto;
-  width: 38px; height: 38px; border-radius: 50%;
+  width: 40px; height: 40px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--panel); border: 1px solid var(--line); color: var(--ink);
-  cursor: pointer; z-index: 5;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  background: none; border: none; cursor: pointer; z-index: 5;
   animation: fade 0.18s ease both;
-  transition: border-color 0.15s var(--ease), color 0.15s var(--ease),
-    transform 0.12s var(--ease);
+  transition: transform 0.12s var(--ease);
 }
-.jump-down svg { display: block; }
-.jump-down:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
-.jump-down:active { transform: none; }
+.jump-down:hover { transform: translateY(2px); }
+.chev-css {
+  display: block; width: 12px; height: 12px;
+  border-right: 3px solid var(--accent);
+  border-bottom: 3px solid var(--accent);
+  border-radius: 1px;
+  transform: rotate(45deg) translate(-2px, -2px);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+}
 .chat.positioning { visibility: hidden; }
 .load-more {
   margin: 6px 4px; padding: 8px; font: inherit; font-size: 0.75rem;

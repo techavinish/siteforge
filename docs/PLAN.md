@@ -26,8 +26,10 @@
 - [x] `deploy_site` — Publish button → per-business Firebase Hosting site (VERIFIED LIVE: sf-sweet-rani-bakery-120d.web.app); `publish.py` is the SiteDeployer seam for the 36-site cap
 - [x] Agent on Cloud Run: firebase ID token verification on every endpoint (identity from token, ownership checks), module gained `secret_env` + `cloudsql_instances`, secrets injected from Secret Manager, unix-socket to Cloud SQL, `deploy-agent.yml` CI
 - [x] Hosting rewrite `/agent/**` → agent service — hosted app fully functional end to end
-- [ ] `pick_images` tool (stock photo API) + logo into render pipeline
-- [ ] Mirror drafts into Cloud SQL `sites` / `site_versions` tables (agent tables now live IN Cloud SQL for the hosted path; local docker pg for dev)
+- [x] `pick_images` — illustrate node (deterministic, Pexels) between plan and write; hero photo per page in render.py
+- [x] Drafts mirror into `users`/`projects`/`sites`/`site_versions` on deliver (append-only versions)
+
+**→ P4 COMPLETE. Next: P5 — Temporal.**
 
 ## Key decisions (and why)
 

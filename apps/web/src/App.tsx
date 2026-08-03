@@ -48,16 +48,17 @@ function pickStarters() {
   return [...STARTER_POOL].sort(() => Math.random() - 0.5).slice(0, 4);
 }
 
-// the welcome headline cycles through what SiteForge can build
+// the welcome headline cycles through what SiteForge can build —
+// every phrase ends in "website" so it always reads as a full sentence
 const BUILD_WORDS = [
-  "a coffee bar",
-  "a bakery",
-  "a yoga studio",
-  "a gym",
-  "a photo portfolio",
-  "a restaurant",
-  "a salon",
-  "your business",
+  "a coffee bar website",
+  "a bakery website",
+  "a yoga studio website",
+  "a gym website",
+  "a portfolio website",
+  "a restaurant website",
+  "a salon website",
+  "your business website",
 ];
 
 export default function App() {
@@ -575,15 +576,9 @@ export default function App() {
 
         {!atBottom && msgs.length > 0 && (
           <button className="jump-down" onClick={scrollToBottom} aria-label="Jump to latest">
-            <svg
-              width="18" height="18" viewBox="0 0 24 24" fill="none"
-              strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
-              // css vars don't resolve in svg ATTRIBUTES — only in style/CSS.
-              // stroke as an attribute fell back to black-on-black.
-              style={{ display: "block", stroke: "var(--accent)" }}
-            >
-              <path d="M6 9l6 6 6-6" />
-            </svg>
+            {/* pure-CSS chevron: two borders rotated 45° — cannot fail to
+                render regardless of fonts, svg handling, or cache state */}
+            <span className="chev-css" />
           </button>
         )}
 
