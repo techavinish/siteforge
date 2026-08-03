@@ -276,6 +276,8 @@ export default function App() {
             }
           } else if (type === "suggestions") {
             setSuggestions(data.items ?? []);
+          } else if (type === "error") {
+            setMsgs((m) => [...m, { role: "agent", text: `⚠️ ${data.message}` }]);
           } else if (type === "done" && data.phase === "done") {
             finished = true;
           }

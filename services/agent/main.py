@@ -216,6 +216,20 @@ def chat(body: ChatIn):
         conn.commit()
 
     def events():
+        try:
+            yield from run_events()
+        except Exception as e:  # the stream must never just go silent
+            text = str(e)
+            if "free-models-per-day" in text or "429" in text:
+                friendly = (
+                    "Daily free-model limit reached on OpenRouter. "
+                    "It resets at midnight UTC — or add credits to raise the limit."
+                )
+            else:
+                friendly = f"The agent hit an error: {text[:200]}"
+            yield f"event: error\ndata: {json.dumps({'message': friendly})}\n\n"
+
+    def run_events():
         # two stream modes multiplexed: "messages" gives token-by-token LLM
         # output (tagged with the node that produced it), "updates" gives
         # node results. The wire protocol mirrors claude/openai chat UIs:
@@ -223,6 +237,7 @@ def chat(body: ChatIn):
         #   token     — deltas of the user-visible answer (respond node)
         #   node      — a node finished (carries deliver's built message)
         #   suggestions / done — computed after the run
+        #   error     — emitted by the wrapper above if anything raises
         for mode, chunk in graph.stream(
             {"messages": [("user", body.message)]},
             config,
