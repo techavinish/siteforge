@@ -129,9 +129,31 @@ copy for ONE page as clean Markdown that renders directly as the website:
 Be specific to this business — never generic filler. Match the requested tone."""
 
 
+def _retrieve_guidelines(brief: dict) -> str:
+    """Pull proven copywriting knowledge from the RAG service — grounding
+    the writer in craft instead of vibes. Absent service = no guidelines,
+    never a failed generation."""
+    import os
+
+    import requests
+
+    url = os.environ.get("RAG_URL", "http://localhost:8002")
+    query = (
+        f"{brief.get('business_type', '')} website copy, "
+        f"{brief.get('tone', '')} tone, headlines and page structure"
+    )
+    try:
+        r = requests.post(f"{url}/rag/search", json={"query": query, "k": 3}, timeout=6)
+        r.raise_for_status()
+        return "\n\n".join(c["content"] for c in r.json()["results"])
+    except Exception:
+        return ""
+
+
 def write(state: AgentState) -> dict:
     model = chat_model(WRITER_MODEL, temperature=0.8)
     feedback = state.get("critique", {}).get("feedback", "")
+    guidelines = _retrieve_guidelines(state["brief"])
     pages = {}
     for page in state["spec"]["pages"]:
         prompt = (
@@ -141,7 +163,10 @@ def write(state: AgentState) -> dict:
         )
         if feedback:
             prompt += f"\nA reviewer said: {feedback}\nFix those issues this time."
-        result = model.invoke([SystemMessage(WRITE_SYSTEM), ("user", prompt)])
+        system = WRITE_SYSTEM
+        if guidelines:
+            system += f"\n\nProven guidelines from our knowledge base — apply them:\n{guidelines}"
+        result = model.invoke([SystemMessage(system), ("user", prompt)])
         pages[page["path"]] = result.content
     return {"pages": pages, "phase": "writing"}
 

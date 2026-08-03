@@ -12,7 +12,7 @@
 | P2 | Firebase Hosting + Google SSO — live app, gateway verifying ID tokens | ✅ 2026-08-03 |
 | P3 | Cloud SQL + schema, Artifact Registry, keyless CI/CD (WIF), `/api` rewrite live | ✅ 2026-08-03 |
 | P4 | **LangGraph agent** — interview→plan→write→review graph, postgres checkpoints | 🔶 core done 2026-08-03 |
-| P5 | Temporal — durable GenerateSiteWorkflow, approval signal, real deploy activity | ⬜ |
+| P5 | Temporal — durable GenerateSiteWorkflow, approval signal, real deploy activity | 🔶 core done 2026-08-04 — crash-resume verified; remaining: UI approval flow, worker on Cloud Run |
 | P6 | RAG — ingestion, pgvector retrieval node, measured quality diff | ⬜ |
 | P7 | Remote MCP server on Cloud Run — external clients build sites via our tools | ⬜ |
 | P8 | ClickHouse medallion (bronze→silver→gold→platinum) + nightly eval cron | ⬜ |
