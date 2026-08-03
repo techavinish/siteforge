@@ -78,7 +78,13 @@ export const IconGlobe = () => (
 );
 
 export const IconStop = () => (
-  <svg {...base} width={14} height={14} fill="currentColor" strokeWidth={0}>
-    <rect x="6" y="6" width="12" height="12" rx="2" />
+  <svg {...base} width={17} height={17} fill="currentColor" strokeWidth={0}>
+    <rect x="5" y="5" width="14" height="14" rx="2.5" />
+  </svg>
+);
+
+export const IconChevronDown = () => (
+  <svg {...base} width={15} height={15}>
+    <polyline points="6 9 12 15 18 9" />
   </svg>
 );

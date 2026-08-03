@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { IconLogout, IconPanel, IconPencil, IconPlus, IconSearch, IconX } from "./icons";
 
@@ -6,6 +6,7 @@ export type ChatMeta = { thread_id: string; title: string; updated_at: string };
 
 export default function Sidebar({
   chats,
+  hasMore,
   active,
   user,
   collapsed,
@@ -14,9 +15,12 @@ export default function Sidebar({
   onNew,
   onDelete,
   onRename,
+  onSearch,
+  onLoadMore,
   onSignOut,
 }: {
   chats: ChatMeta[];
+  hasMore: boolean;
   active: string | null;
   user: User;
   collapsed: boolean;
@@ -25,16 +29,22 @@ export default function Sidebar({
   onNew: () => void;
   onDelete: (chat: ChatMeta) => void;
   onRename: (id: string, title: string) => Promise<void>;
+  onSearch: (q: string) => void;
+  onLoadMore: () => void;
   onSignOut: () => void;
 }) {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const debounceRef = useRef<number>();
 
-  const filtered = useMemo(
-    () => chats.filter((c) => c.title.toLowerCase().includes(q.trim().toLowerCase())),
-    [chats, q],
-  );
+  // search is SERVER-side — debounce keystrokes into api calls
+  useEffect(() => {
+    window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => onSearch(q), 250);
+    return () => window.clearTimeout(debounceRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
 
   function startEdit(c: ChatMeta) {
     setEditing(c.thread_id);
@@ -79,7 +89,7 @@ export default function Sidebar({
       </div>
 
       <div className="chat-list">
-        {filtered.map((c) => (
+        {chats.map((c) => (
           <div key={c.thread_id} className={c.thread_id === active ? "chat-row active" : "chat-row"}>
             {editing === c.thread_id ? (
               <input
@@ -127,8 +137,11 @@ export default function Sidebar({
             )}
           </div>
         ))}
-        {filtered.length === 0 && (
+        {chats.length === 0 && (
           <p className="muted side-empty">{q ? "No matches" : "No chats yet"}</p>
+        )}
+        {hasMore && (
+          <button className="load-more" onClick={onLoadMore}>Load older chats</button>
         )}
       </div>
 

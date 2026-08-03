@@ -97,7 +97,32 @@ DONE_SUGGESTIONS = [
 ]
 
 
-def _suggestions(state: dict) -> list[str]:
+def _suggestions(state: dict, last_reply: str = "") -> list[str]:
+    """Quick replies grounded in what the agent just said (LLM), with the
+    deterministic canned options as fallback when the model is unavailable."""
+    if last_reply:
+        try:
+            import json as _json
+            import re as _re
+
+            from config import INTERVIEW_MODEL
+            from llm import chat_model
+
+            r = chat_model(INTERVIEW_MODEL, temperature=0.4).invoke([
+                ("system",
+                 "The assistant of a website-building copilot just said the message "
+                 "below. Suggest 3 short replies the USER would likely tap next "
+                 "(each under 6 words, no punctuation at the end). "
+                 'Reply with ONLY a JSON array of 3 strings.'),
+                ("user", last_reply),
+            ])
+            m = _re.search(r"\[.*\]", r.content, _re.DOTALL)
+            items = _json.loads(m.group(0) if m else r.content)
+            if isinstance(items, list) and items:
+                return [str(s)[:48] for s in items[:4]]
+        except Exception:
+            pass  # fall through to canned options
+
     if state.get("phase") == "done":
         return DONE_SUGGESTIONS
     if not state.get("brief_complete"):
@@ -122,13 +147,32 @@ def create_chat(body: NewChatIn):
 
 
 @app.get("/agent/chats")
-def list_chats(uid: str):
+def list_chats(uid: str, q: str = "", cursor: str = "", limit: int = 30):
+    """Server-side search + keyset pagination (cursor = updated_at|thread_id)."""
+    limit = min(max(limit, 1), 100)
+    sql = "SELECT thread_id, title, updated_at FROM chats WHERE uid=%s"
+    params: list = [uid]
+    if q.strip():
+        sql += " AND title ILIKE %s"
+        params.append(f"%{q.strip()}%")
+    if cursor:
+        ts, _, tid = cursor.partition("|")
+        sql += " AND (updated_at, thread_id) < (%s, %s)"
+        params += [ts, tid]
+    sql += " ORDER BY updated_at DESC, thread_id DESC LIMIT %s"
+    params.append(limit + 1)  # one extra row = "there's more"
+
     with psycopg.connect(DATABASE_URL) as conn:
-        rows = conn.execute(
-            "SELECT thread_id, title, updated_at FROM chats WHERE uid=%s ORDER BY updated_at DESC",
-            (uid,),
-        ).fetchall()
-    return [{"thread_id": r[0], "title": r[1] or "New chat", "updated_at": r[2].isoformat()} for r in rows]
+        rows = conn.execute(sql, params).fetchall()
+
+    more = len(rows) > limit
+    rows = rows[:limit]
+    items = [
+        {"thread_id": r[0], "title": r[1] or "New chat", "updated_at": r[2].isoformat()}
+        for r in rows
+    ]
+    next_cursor = f"{rows[-1][2].isoformat()}|{rows[-1][0]}" if more else None
+    return {"items": items, "next_cursor": next_cursor}
 
 
 class RenameIn(BaseModel):
@@ -189,17 +233,32 @@ def _ensure_title(thread_id: str, first_message: str) -> None:
 
 
 @app.get("/agent/chats/{thread_id}/messages")
-def chat_messages(thread_id: str):
+def chat_messages(thread_id: str, cursor: str = "", limit: int = 50):
+    """Latest page first; cursor (a message id) walks backwards in history."""
+    limit = min(max(limit, 1), 200)
+    sql = "SELECT id, role, content, thinking, attachment FROM messages WHERE thread_id=%s"
+    params: list = [thread_id]
+    if cursor:
+        sql += " AND id < %s"
+        params.append(int(cursor))
+    sql += " ORDER BY id DESC LIMIT %s"
+    params.append(limit + 1)
+
     with psycopg.connect(DATABASE_URL) as conn:
-        rows = conn.execute(
-            "SELECT role, content, thinking, attachment FROM messages WHERE thread_id=%s ORDER BY id",
-            (thread_id,),
-        ).fetchall()
+        rows = conn.execute(sql, params).fetchall()
+
+    more = len(rows) > limit
+    rows = rows[:limit]
+    rows.reverse()  # oldest-first for rendering
     if rows:
-        return [
-            {"role": r[0], "text": r[1], "thinking": r[2], "attachment": r[3]}
-            for r in rows
-        ]
+        return {
+            "items": [
+                {"role": r[1], "text": r[2], "thinking": r[3], "attachment": r[4]}
+                for r in rows
+            ],
+            "next_cursor": str(rows[0][0]) if more else None,
+        }
+
     # threads older than the messages table: fall back to checkpointer state
     state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
     out = []
@@ -207,7 +266,7 @@ def chat_messages(thread_id: str):
         role = "user" if m.type == "human" else "agent"
         if m.content:
             out.append({"role": role, "text": m.content, "thinking": None, "attachment": None})
-    return out
+    return {"items": out, "next_cursor": None}
 
 
 @app.get("/healthz")
@@ -310,6 +369,7 @@ def chat(body: ChatIn):
         # the BE mirrors what the client assembles, persisting each agent
         # message (with its thinking and artifacts) as it finalizes
         answer_acc = ""
+        last_reply = ""
         think_acc: list[dict] = []
 
         for mode, chunk in graph.stream(
@@ -347,11 +407,13 @@ def chat(body: ChatIn):
                 # (no tokens exist), so it ships whole.
                 if node_name == "respond" and answer_acc:
                     _save_message(body.thread_id, "agent", answer_acc, thinking=think_acc or None)
+                    last_reply = answer_acc
                     answer_acc = ""
                     think_acc = []
                 if node_name != "respond":
                     for m in node_update.get("messages", []):
                         payload["reply"] = m.content
+                        last_reply = m.content
                         if node_name == "deliver":
                             _save_message(
                                 body.thread_id, "agent", m.content,
@@ -362,8 +424,8 @@ def chat(body: ChatIn):
 
         final = graph.get_state(config).values
 
-        # quick replies — computed HERE (deterministic, free), not in the FE
-        chips = _suggestions(final)
+        # quick replies grounded in the agent's answer — computed in the BE
+        chips = _suggestions(final, last_reply)
         if chips:
             yield f"event: suggestions\ndata: {json.dumps({'items': chips})}\n\n"
 

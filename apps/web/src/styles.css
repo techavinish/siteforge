@@ -7,10 +7,29 @@
   --paper: #faf8f5;
   --panel: #f2eee9;
   --line: #e4ded6;
-  --font-display: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
-  font-family: "Geist Mono", "Geist Mono Fallback", ui-monospace, "SF Mono", monospace;
+  /* Geist for reading, Geist Mono for identity accents (logo, urls,
+     labels, chips) — mono everywhere fatigues; mono as seasoning sings */
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --font-display: var(--font-mono);
+  font-family: "Geist", "Geist Fallback", system-ui, sans-serif;
   font-size: 15px;
 }
+.logo, .preview-url, .think-section .think-label, .chip, .phase-tag,
+.side-search input, .chat-rename, .publish {
+  font-family: var(--font-mono);
+}
+
+/* themed scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--ink-faint, #888); }
+*::-webkit-scrollbar-track { background: transparent; }
+
+::selection { background: var(--accent-soft); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus:not(:focus-visible), input:focus:not(:focus-visible) { outline: none; }
 @media (prefers-color-scheme: dark) {
   :root {
     --accent: #ff6b2c;
@@ -299,14 +318,23 @@ button.primary:disabled { opacity: 0.45; }
   contain-intrinsic-size: auto 64px;
 }
 .jump-down {
-  position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%);
-  width: 36px; height: 36px; border-radius: 50%;
+  position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%);
+  width: 38px; height: 38px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
   background: var(--panel); border: 1px solid var(--line); color: var(--ink);
-  font-size: 1rem; cursor: pointer; z-index: 5;
+  cursor: pointer; z-index: 5;
   box-shadow: 0 4px 14px rgba(0,0,0,0.18);
   animation: rise 0.2s ease both;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
+.jump-down svg { display: block; }
 .jump-down:hover { border-color: var(--accent); color: var(--accent); }
+.load-more {
+  margin: 6px 4px; padding: 8px; font: inherit; font-size: 0.75rem;
+  color: var(--accent); background: none; border: none; cursor: pointer;
+  border-radius: 8px; opacity: 0.8;
+}
+.load-more:hover { background: var(--accent-soft); opacity: 1; }
 .chat-shell { position: relative; }
 .intro { max-width: 44ch; }
 .bubble {

@@ -3,7 +3,7 @@ import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebas
 import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
 import ConfirmModal from "./ConfirmModal";
-import { IconGlobe, IconStop } from "./icons";
+import { IconChevronDown, IconGlobe, IconStop } from "./icons";
 import Preview, { type Draft } from "./Preview";
 import Sidebar, { type ChatMeta } from "./Sidebar";
 import Thinking, { type ThinkBlock } from "./Thinking";
@@ -65,6 +65,19 @@ export default function App() {
   const [previewWide, setPreviewWide] = useState(false);
   const sidebarWasOpen = useRef(false);
 
+  // an open artifact deserves the room: tuck the sidebar away while the
+  // website canvas is visible, bring it back when the canvas closes
+  useEffect(() => {
+    if (draft && previewOpen) {
+      sidebarWasOpen.current = !collapsed || sidebarWasOpen.current;
+      setCollapsed(true);
+    } else if (sidebarWasOpen.current) {
+      sidebarWasOpen.current = false;
+      setCollapsed(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, previewOpen]);
+
   function togglePreviewWide() {
     setPreviewWide((w) => {
       if (!w) {
@@ -87,6 +100,7 @@ export default function App() {
     const el = chatRef.current;
     if (!el) return;
     setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+    if (el.scrollTop < 60) loadOlderMessages();
   }
 
   function scrollToBottom() {
@@ -108,6 +122,7 @@ export default function App() {
       setThread(null);
       setMsgs([]);
       setDraft(null);
+      history.pushState(null, "", "#/");
     }
     setDeleteTarget(null);
   }
@@ -121,11 +136,24 @@ export default function App() {
     if (user) await loadChats(user);
   }
 
-  const loadChats = useCallback(async (u: User) => {
-    const list: ChatMeta[] = await fetch(`/agent/chats?uid=${u.uid}`).then((r) => r.json());
-    setChats(list);
-    return list;
-  }, []);
+  const searchRef = useRef("");
+  const [chatsCursor, setChatsCursor] = useState<string | null>(null);
+  const [msgsCursor, setMsgsCursor] = useState<string | null>(null);
+  const loadingOlder = useRef(false);
+
+  const loadChats = useCallback(
+    async (u: User, opts: { q?: string; cursor?: string; append?: boolean } = {}) => {
+      const params = new URLSearchParams({ uid: u.uid });
+      const q = opts.q ?? searchRef.current;
+      if (q) params.set("q", q);
+      if (opts.cursor) params.set("cursor", opts.cursor);
+      const { items, next_cursor } = await fetch(`/agent/chats?${params}`).then((r) => r.json());
+      setChats((prev) => (opts.append ? [...prev, ...items] : items));
+      setChatsCursor(next_cursor);
+      return items as ChatMeta[];
+    },
+    [],
+  );
 
   const openThread = useCallback(async (id: string) => {
     setThread(id);
@@ -134,15 +162,15 @@ export default function App() {
     // the thread id lives in the URL: refresh restores it, back/forward
     // moves between conversations — single-route SPA, hash as state
     if (hashThread() !== id) history.pushState(null, "", `#/c/${id}`);
-    const [history_, d] = await Promise.all([
+    const [page, d] = await Promise.all([
       fetch(`/agent/chats/${id}/messages`).then((r) => r.json()),
       fetch(`/agent/draft/${id}`).then((r) => r.json()),
     ]);
     // the site artifact belongs to the message that produced it — on
-    // restore, that's the thread's last agent message
+    // restore, that's the thread's last agent message (older schema rows)
     const hasDraft = d?.pages && Object.keys(d.pages).length;
-    const msgs_: Msg[] = history_;
-    if (hasDraft) {
+    const msgs_: Msg[] = page.items;
+    if (hasDraft && !msgs_.some((m) => m.attachment === "site")) {
       for (let i = msgs_.length - 1; i >= 0; i--) {
         if (msgs_[i].role === "agent") {
           msgs_[i] = { ...msgs_[i], attachment: "site" };
@@ -151,11 +179,39 @@ export default function App() {
       }
     }
     setMsgs(msgs_);
+    setMsgsCursor(page.next_cursor);
     setDraft(hasDraft ? d : null);
     setPreviewOpen(Boolean(hasDraft));
     setSuggestions([]);
     setThinks([]);
+    // land at the latest message instantly — no visible scroll animation
+    requestAnimationFrame(() => {
+      const el = chatRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+      setAtBottom(true);
+    });
   }, []);
+
+  // reaching the top of the chat loads the previous page of history,
+  // keeping the viewport anchored on what the user was reading
+  async function loadOlderMessages() {
+    const el = chatRef.current;
+    if (!el || !thread || !msgsCursor || loadingOlder.current) return;
+    loadingOlder.current = true;
+    try {
+      const page = await fetch(
+        `/agent/chats/${thread}/messages?cursor=${msgsCursor}`,
+      ).then((r) => r.json());
+      const prevHeight = el.scrollHeight;
+      setMsgs((m) => [...page.items, ...m]);
+      setMsgsCursor(page.next_cursor);
+      requestAnimationFrame(() => {
+        el.scrollTop += el.scrollHeight - prevHeight;
+      });
+    } finally {
+      loadingOlder.current = false;
+    }
+  }
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
@@ -165,7 +221,8 @@ export default function App() {
         const list = await loadChats(u);
         const fromUrl = hashThread();
         if (fromUrl && list.some((c) => c.thread_id === fromUrl)) openThread(fromUrl);
-        else if (list.length) openThread(list[0].thread_id);
+        // an explicit "#/" means the user was on the welcome screen — honor it
+        else if (location.hash !== "#/" && list.length) openThread(list[0].thread_id);
       }
     });
   }, [loadChats, openThread]);
@@ -361,6 +418,7 @@ export default function App() {
     <div className={showPreview ? (previewWide ? "workspace three wide" : "workspace three") : "workspace two"}>
       <Sidebar
         chats={chats}
+        hasMore={Boolean(chatsCursor)}
         active={thread}
         user={user}
         collapsed={collapsed}
@@ -369,6 +427,11 @@ export default function App() {
         onNew={newChat}
         onDelete={setDeleteTarget}
         onRename={renameChat}
+        onSearch={(q) => {
+          searchRef.current = q;
+          if (user) loadChats(user, { q });
+        }}
+        onLoadMore={() => user && chatsCursor && loadChats(user, { cursor: chatsCursor, append: true })}
         onSignOut={() => signOut(auth)}
       />
 
@@ -441,8 +504,8 @@ export default function App() {
         </section>
 
         {!atBottom && (
-          <button className="jump-down" onClick={scrollToBottom} data-tip="Jump to latest">
-            ↓
+          <button className="jump-down" onClick={scrollToBottom} aria-label="Jump to latest">
+            <IconChevronDown />
           </button>
         )}
 
