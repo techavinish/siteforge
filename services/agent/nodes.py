@@ -75,9 +75,17 @@ def respond(state: AgentState) -> dict:
 PLAN_SYSTEM = """You are a web strategist. Given a business brief, design a small
 website. Respond with ONLY JSON:
 {"site_name": str,
- "theme": {"mood": str, "primary_color": "#RRGGBB hex chosen to fit THIS brand's
-  industry and tone — e.g. warm terracotta for a bakery, deep espresso for a
-  coffee bar, calm sage for a yoga studio. Never a generic default blue."},
+ "theme": {
+   "mood": str,
+   "primary_color": "#RRGGBB hex chosen to fit THIS brand's industry and tone —
+    e.g. warm terracotta for a bakery, deep espresso for a coffee bar, calm sage
+    for a yoga studio. Never a generic default blue.",
+   "fonts": {
+     "heading": "pick ONE that fits the brand: Playfair Display | DM Serif Display |
+      Lora | Sora | Space Grotesk | Poppins | Montserrat | Cormorant Garamond",
+     "body": "pick ONE: Inter | Source Sans 3 | Nunito Sans | IBM Plex Sans | Karla"
+   }
+ },
  "pages": [{"path": "/", "title": str, "purpose": str, "sections": [str, ...]}, ...]}
 3 to 5 pages. Always include "/" (home) and a contact page."""
 
@@ -91,8 +99,15 @@ def plan(state: AgentState) -> dict:
     return {"spec": spec, "phase": "planning"}
 
 
-WRITE_SYSTEM = """You are a copywriter for small-business websites. Write the full
-copy for ONE page in Markdown: headline, section content, and a call to action.
+WRITE_SYSTEM = """You are a copywriter for small-business websites. Write the FINAL
+copy for ONE page as clean Markdown that renders directly as the website:
+
+- Start with # (the page's hero headline), then one bold tagline line.
+- Then ## sections with real content: short paragraphs, bullet lists where natural.
+- Calls to action are markdown links like [Order Now](#contact) — they render
+  as buttons.
+- NO placeholder notes, NO "(Visual: ...)" or photo descriptions, NO commentary
+  about the page — output only what a visitor would read.
 Be specific to this business — never generic filler. Match the requested tone."""
 
 

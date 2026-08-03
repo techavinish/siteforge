@@ -60,6 +60,23 @@ export const IconSend = () => (
   </svg>
 );
 
+export const IconExpand = () => (
+  <svg {...base} width={14} height={14}>
+    <polyline points="15 3 21 3 21 9" />
+    <polyline points="9 21 3 21 3 15" />
+    <line x1="21" y1="3" x2="14" y2="10" />
+    <line x1="3" y1="21" x2="10" y2="14" />
+  </svg>
+);
+
+export const IconGlobe = () => (
+  <svg {...base}>
+    <circle cx="12" cy="12" r="9" />
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" />
+  </svg>
+);
+
 export const IconStop = () => (
   <svg {...base} width={14} height={14} fill="currentColor" strokeWidth={0}>
     <rect x="6" y="6" width="12" height="12" rx="2" />

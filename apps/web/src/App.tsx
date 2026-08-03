@@ -3,7 +3,7 @@ import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebas
 import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
 import ConfirmModal from "./ConfirmModal";
-import { IconStop } from "./icons";
+import { IconGlobe, IconStop } from "./icons";
 import Preview, { type Draft } from "./Preview";
 import Sidebar, { type ChatMeta } from "./Sidebar";
 
@@ -53,6 +53,8 @@ export default function App() {
   const [starters, setStarters] = useState(pickStarters);
   const [deleteTarget, setDeleteTarget] = useState<ChatMeta | null>(null);
   const [streamText, setStreamText] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(true);
+  const [previewWide, setPreviewWide] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -102,7 +104,9 @@ export default function App() {
       fetch(`/agent/draft/${id}`).then((r) => r.json()),
     ]);
     setMsgs(history_);
-    setDraft(d?.pages && Object.keys(d.pages).length ? d : null);
+    const hasDraft = d?.pages && Object.keys(d.pages).length;
+    setDraft(hasDraft ? d : null);
+    setPreviewOpen(Boolean(hasDraft));
   }, []);
 
   useEffect(() => {
@@ -219,6 +223,7 @@ export default function App() {
       if (finished && tid) {
         const d = await fetch(`/agent/draft/${tid}`).then((r) => r.json());
         setDraft(d);
+        setPreviewOpen(true); // a fresh draft presents itself
       }
       await loadChats(user);
     } catch (e) {
@@ -263,8 +268,10 @@ export default function App() {
     );
   }
 
+  const showPreview = Boolean(draft) && previewOpen;
+
   return (
-    <div className={draft ? "workspace three" : "workspace two"}>
+    <div className={showPreview ? (previewWide ? "workspace three wide" : "workspace three") : "workspace two"}>
       <Sidebar
         chats={chats}
         active={thread}
@@ -317,6 +324,17 @@ export default function App() {
               />
             ),
           )}
+          {draft && (
+            <button className="site-card" onClick={() => setPreviewOpen((o) => !o)}>
+              <span className="site-card-ico"><IconGlobe /></span>
+              <span className="site-card-body">
+                <strong>{draft.spec?.site_name ?? "Your website"}</strong>
+                <span className="muted">
+                  {Object.keys(draft.pages ?? {}).length} pages · {previewOpen ? "hide" : "view"} website
+                </span>
+              </span>
+            </button>
+          )}
           {streamText && (
             <div
               className="agent-md streaming"
@@ -341,7 +359,7 @@ export default function App() {
             disabled={busy}
           />
           {busy ? (
-            <button className="stop" onClick={stopStream} title="Stop generating">
+            <button className="stop" onClick={stopStream} data-tip="Stop generating">
               <IconStop />
             </button>
           ) : (
@@ -352,7 +370,14 @@ export default function App() {
         </footer>
       </main>
 
-      {draft && <Preview draft={draft} />}
+      {showPreview && draft && (
+        <Preview
+          draft={draft}
+          wide={previewWide}
+          onToggleWide={() => setPreviewWide((w) => !w)}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
     </div>
   );
 }
