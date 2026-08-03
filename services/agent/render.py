@@ -59,19 +59,21 @@ PAGE = Template("""<!doctype html>
 <header><span class="brand">$site_name</span><nav>$nav</nav></header>
 <main>$body</main>
 <footer>© $year $site_name · Built with SiteForge</footer>
-<script>
+$nav_script
+</body>
+</html>""")
+
+PREVIEW_NAV_SCRIPT = """<script>
   document.querySelectorAll("nav a").forEach(function (a) {
     a.addEventListener("click", function (e) {
       e.preventDefault();
       parent.postMessage({ sfNav: a.dataset.path }, "*");
     });
   });
-</script>
-</body>
-</html>""")
+</script>"""
 
 
-def build_site_html(spec: dict, pages: dict, path: str) -> str:
+def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -> str:
     theme = spec.get("theme") or {}
     fonts = theme.get("fonts") or {}
     head_font = (fonts.get("heading") or "Georgia").strip()
@@ -79,10 +81,18 @@ def build_site_html(spec: dict, pages: dict, path: str) -> str:
     site_name = spec.get("site_name") or "Your Site"
     page_list = spec.get("pages") or [{"path": p, "title": p} for p in pages]
 
-    nav = "".join(
-        f'<a href="#" data-path="{p["path"]}" class="{"on" if p["path"] == path else ""}">{p["title"]}</a>'
-        for p in page_list
-    )
+    # preview: nav clicks postMessage up to the app; live: real hrefs
+    if mode == "live":
+        nav = "".join(
+            f'<a href="{p["path"] if p["path"] == "/" else p["path"] + "/"}"'
+            f' class="{"on" if p["path"] == path else ""}">{p["title"]}</a>'
+            for p in page_list
+        )
+    else:
+        nav = "".join(
+            f'<a href="#" data-path="{p["path"]}" class="{"on" if p["path"] == path else ""}">{p["title"]}</a>'
+            for p in page_list
+        )
     fonts_query = "&".join(
         f"family={f.replace(' ', '+')}:wght@400;600;700" for f in (head_font, body_font)
     )
@@ -99,4 +109,5 @@ def build_site_html(spec: dict, pages: dict, path: str) -> str:
         nav=nav,
         body=md.markdown(pages.get(path, ""), extensions=["extra"]),
         year=datetime.now(timezone.utc).year,
+        nav_script="" if mode == "live" else PREVIEW_NAV_SCRIPT,
     )

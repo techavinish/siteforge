@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from config import DATABASE_URL
 from graph import build_graph
+from publish import publish_site
 from render import build_site_html
 
 app = FastAPI(title="siteforge-agent")
@@ -42,7 +43,32 @@ with psycopg.connect(DATABASE_URL) as _conn:
             updated_at timestamptz NOT NULL DEFAULT now()
         )""")
     _conn.execute("CREATE INDEX IF NOT EXISTS ix_chats_uid ON chats (uid, updated_at DESC)")
+    _conn.execute("ALTER TABLE chats ADD COLUMN IF NOT EXISTS published_site_id text")
+    _conn.execute("ALTER TABLE chats ADD COLUMN IF NOT EXISTS published_url text")
+    # our own message store — the checkpointer holds graph STATE, but the
+    # conversation as the user saw it (thinking, artifacts included) is
+    # product data and lives in a queryable table
+    _conn.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id         bigserial PRIMARY KEY,
+            thread_id  text NOT NULL REFERENCES chats(thread_id) ON DELETE CASCADE,
+            role       text NOT NULL,
+            content    text NOT NULL,
+            thinking   jsonb,
+            attachment text,
+            created_at timestamptz NOT NULL DEFAULT now()
+        )""")
+    _conn.execute("CREATE INDEX IF NOT EXISTS ix_messages_thread ON messages (thread_id, id)")
     _conn.commit()
+
+
+def _save_message(thread_id: str, role: str, content: str, thinking=None, attachment=None):
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute(
+            "INSERT INTO messages (thread_id, role, content, thinking, attachment) VALUES (%s,%s,%s,%s,%s)",
+            (thread_id, role, content, json.dumps(thinking) if thinking else None, attachment),
+        )
+        conn.commit()
 
 
 class ChatIn(BaseModel):
@@ -164,12 +190,23 @@ def _ensure_title(thread_id: str, first_message: str) -> None:
 
 @app.get("/agent/chats/{thread_id}/messages")
 def chat_messages(thread_id: str):
+    with psycopg.connect(DATABASE_URL) as conn:
+        rows = conn.execute(
+            "SELECT role, content, thinking, attachment FROM messages WHERE thread_id=%s ORDER BY id",
+            (thread_id,),
+        ).fetchall()
+    if rows:
+        return [
+            {"role": r[0], "text": r[1], "thinking": r[2], "attachment": r[3]}
+            for r in rows
+        ]
+    # threads older than the messages table: fall back to checkpointer state
     state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
     out = []
     for m in state.get("messages", []):
         role = "user" if m.type == "human" else "agent"
         if m.content:
-            out.append({"role": role, "text": m.content})
+            out.append({"role": role, "text": m.content, "thinking": None, "attachment": None})
     return out
 
 
@@ -194,13 +231,44 @@ def site(thread_id: str, path: str = "/"):
 def draft(thread_id: str):
     """Full draft for a conversation — spec, brief, and every page's copy."""
     state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
+    with psycopg.connect(DATABASE_URL) as conn:
+        row = conn.execute(
+            "SELECT published_url FROM chats WHERE thread_id=%s", (thread_id,)
+        ).fetchone()
     return {
         "phase": state.get("phase"),
         "brief": state.get("brief", {}),
         "spec": state.get("spec", {}),
         "pages": state.get("pages", {}),
         "score": state.get("critique", {}).get("score"),
+        "live_url": row[0] if row else None,
     }
+
+
+@app.post("/agent/publish/{thread_id}")
+def publish(thread_id: str):
+    """deploy_site: render every page live-mode and release it to Firebase
+    Hosting on the business's own sub-site. Re-publishing reuses the site."""
+    state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
+    pages = state.get("pages", {})
+    if not pages:
+        raise HTTPException(status_code=404, detail="No site to publish yet")
+
+    with psycopg.connect(DATABASE_URL) as conn:
+        row = conn.execute(
+            "SELECT published_site_id FROM chats WHERE thread_id=%s", (thread_id,)
+        ).fetchone()
+    existing = row[0] if row else None
+
+    site_id, url = publish_site(state.get("spec", {}), pages, existing)
+
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute(
+            "UPDATE chats SET published_site_id=%s, published_url=%s WHERE thread_id=%s",
+            (site_id, url, thread_id),
+        )
+        conn.commit()
+    return {"url": url}
 
 
 @app.post("/agent/chat")
@@ -214,6 +282,7 @@ def chat(body: ChatIn):
             (body.thread_id,),
         )
         conn.commit()
+    _save_message(body.thread_id, "user", body.message)
 
     def events():
         try:
@@ -238,6 +307,11 @@ def chat(body: ChatIn):
         #   node      — a node finished (carries deliver's built message)
         #   suggestions / done — computed after the run
         #   error     — emitted by the wrapper above if anything raises
+        # the BE mirrors what the client assembles, persisting each agent
+        # message (with its thinking and artifacts) as it finalizes
+        answer_acc = ""
+        think_acc: list[dict] = []
+
         for mode, chunk in graph.stream(
             {"messages": [("user", body.message)]},
             config,
@@ -249,8 +323,15 @@ def chat(body: ChatIn):
                 if not getattr(msg_chunk, "content", None):
                     continue
                 if node == "respond":
+                    answer_acc += msg_chunk.content
                     yield f"event: token\ndata: {json.dumps({'text': msg_chunk.content})}\n\n"
                 else:
+                    if think_acc and think_acc[-1]["node"] == node:
+                        think_acc[-1]["text"] += msg_chunk.content
+                    else:
+                        think_acc.append(
+                            {"node": node, "label": NODE_LABELS.get(node, node), "text": msg_chunk.content}
+                        )
                     payload = {
                         "node": node,
                         "label": NODE_LABELS.get(node, node),
@@ -264,9 +345,19 @@ def chat(body: ChatIn):
                 # respond's full text was already streamed as tokens — the node
                 # event just marks it finished. deliver's message is code-built
                 # (no tokens exist), so it ships whole.
+                if node_name == "respond" and answer_acc:
+                    _save_message(body.thread_id, "agent", answer_acc, thinking=think_acc or None)
+                    answer_acc = ""
+                    think_acc = []
                 if node_name != "respond":
                     for m in node_update.get("messages", []):
                         payload["reply"] = m.content
+                        if node_name == "deliver":
+                            _save_message(
+                                body.thread_id, "agent", m.content,
+                                thinking=think_acc or None, attachment="site",
+                            )
+                            think_acc = []
                 yield f"event: node\ndata: {json.dumps(payload)}\n\n"
 
         final = graph.get_state(config).values

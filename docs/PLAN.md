@@ -21,11 +21,13 @@
 
 ## P4 — remaining work
 
-- [ ] Chat UI in `apps/web` wired to agent SSE (in progress)
-- [ ] Deploy agent service to Cloud Run (needs Cloud SQL unix-socket + secret env support in the terraform module)
-- [ ] Hosting rewrite `/agent/**` → agent service; auth via gateway-verified tokens
-- [ ] Agent tools: `deploy_site` (Firebase Hosting API), `pick_images` (stock photo API)
-- [ ] Persist finished drafts into `sites` / `site_versions` tables
+- [x] Chat UI wired to agent SSE — full protocol: thinking deltas, tokens, suggestions, error events; multi-chat, rename/delete, URL routing, stop, smart scrolling
+- [x] Message store: agent-owned `chats` + `messages` tables (thinking + artifacts persisted per message)
+- [x] `deploy_site` — Publish button → per-business Firebase Hosting site (VERIFIED LIVE: sf-sweet-rani-bakery-120d.web.app); `publish.py` is the SiteDeployer seam for the 36-site cap
+- [ ] Deploy agent service to Cloud Run (needs Cloud SQL unix-socket + secret env support in the terraform module) + verify ID tokens on agent endpoints
+- [ ] Hosting rewrite `/agent/**` → agent service
+- [ ] `pick_images` tool (stock photo API) + logo into render pipeline
+- [ ] Mirror drafts into Cloud SQL `sites` / `site_versions` tables
 
 ## Key decisions (and why)
 

@@ -80,6 +80,18 @@ export default function App() {
   }
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef<HTMLElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+
+  function onChatScroll() {
+    const el = chatRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  }
+
+  function scrollToBottom() {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
 
   function toggleSidebar() {
     setCollapsed((c) => {
@@ -173,9 +185,11 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, [openThread]);
 
+  // follow the stream only while the user is at the bottom — scrolling up
+  // to read pauses auto-scroll; the ↓ button jumps back into the flow
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, phase, streamText]);
+    if (atBottom) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, phase, streamText, thinks, atBottom]);
 
   function newChat() {
     // no API call — the thread is created on the FIRST message, so an
@@ -369,7 +383,7 @@ export default function App() {
       )}
 
       <main className="chat-shell">
-        <section className="chat">
+        <section className="chat" ref={chatRef} onScroll={onChatScroll}>
           {msgs.length === 0 && (
             <div className="hero-empty">
               <h2>What are we building today?</h2>
@@ -425,6 +439,12 @@ export default function App() {
           )}
           <div ref={bottomRef} />
         </section>
+
+        {!atBottom && (
+          <button className="jump-down" onClick={scrollToBottom} data-tip="Jump to latest">
+            ↓
+          </button>
+        )}
 
         {suggestions.length > 0 && !busy && (
           <div className="suggest-row">
