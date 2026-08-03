@@ -1,0 +1,33 @@
+# secrets & local config — never committed
+.env
+.env.*
+!.env.example
+*.pem
+*-key.json
+serviceAccount*.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# node
+node_modules/
+dist/
+*.local
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/

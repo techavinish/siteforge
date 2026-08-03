@@ -1,0 +1,673 @@
+<title>SiteForge — Business Website Copilot: Architecture &amp; Learning Plan</title>
+<style>
+  :root {
+    --paper: #FAFBF8;
+    --panel: #F1F4EF;
+    --panel-2: #E9EDE7;
+    --ink: #1C2420;
+    --ink-soft: #47534C;
+    --ink-faint: #6C7873;
+    --line: #D7DDD5;
+    --accent: #1B7A5F;
+    --accent-soft: #E3EFE9;
+    --bronze: #A16A3C;
+    --silver: #7E8890;
+    --gold: #A8821F;
+    --platinum: #5F7492;
+    --warn-bg: #FBF3E2;
+    --warn-line: #E4CE9A;
+    --code-bg: #EEF1EC;
+    --shadow: 0 1px 3px rgba(28,36,32,.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #111814;
+      --panel: #18211C;
+      --panel-2: #1E2922;
+      --ink: #E4EAE5;
+      --ink-soft: #A7B3AB;
+      --ink-faint: #7E8B83;
+      --line: #2A362F;
+      --accent: #4DBB96;
+      --accent-soft: #17302637;
+      --bronze: #C98F5C;
+      --silver: #9AA5AD;
+      --gold: #CBA23F;
+      --platinum: #8CA2C2;
+      --warn-bg: #2A2415;
+      --warn-line: #57481F;
+      --code-bg: #1A231E;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #FAFBF8; --panel: #F1F4EF; --panel-2: #E9EDE7; --ink: #1C2420;
+    --ink-soft: #47534C; --ink-faint: #6C7873; --line: #D7DDD5; --accent: #1B7A5F;
+    --accent-soft: #E3EFE9; --bronze: #A16A3C; --silver: #7E8890; --gold: #A8821F;
+    --platinum: #5F7492; --warn-bg: #FBF3E2; --warn-line: #E4CE9A; --code-bg: #EEF1EC;
+    --shadow: 0 1px 3px rgba(28,36,32,.07);
+  }
+  :root[data-theme="dark"] {
+    --paper: #111814; --panel: #18211C; --panel-2: #1E2922; --ink: #E4EAE5;
+    --ink-soft: #A7B3AB; --ink-faint: #7E8B83; --line: #2A362F; --accent: #4DBB96;
+    --accent-soft: #17302637; --bronze: #C98F5C; --silver: #9AA5AD; --gold: #CBA23F;
+    --platinum: #8CA2C2; --warn-bg: #2A2415; --warn-line: #57481F; --code-bg: #1A231E;
+    --shadow: none;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.62;
+    margin: 0;
+    font-size: 16px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  .eyebrow, .mono-label {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  h1 {
+    font-family: "Avenir Next", "Helvetica Neue", system-ui, sans-serif;
+    font-size: clamp(30px, 5vw, 44px);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.12;
+    margin: 10px 0 14px;
+    text-wrap: balance;
+  }
+  .subtitle { font-size: 18px; color: var(--ink-soft); max-width: 68ch; margin: 0 0 6px; }
+  h2 {
+    font-family: "Avenir Next", "Helvetica Neue", system-ui, sans-serif;
+    font-size: 25px; font-weight: 700; letter-spacing: -0.01em;
+    margin: 0 0 6px; text-wrap: balance;
+  }
+  h3 { font-size: 18px; font-weight: 650; margin: 26px 0 8px; }
+  p { max-width: 68ch; margin: 0 0 14px; }
+  ul, ol { max-width: 68ch; padding-left: 24px; margin: 0 0 14px; }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  strong { font-weight: 650; }
+
+  section { margin-top: 64px; }
+  .sec-head {
+    display: flex; align-items: baseline; gap: 14px;
+    border-bottom: 2px solid var(--line);
+    padding-bottom: 10px; margin-bottom: 22px;
+  }
+  .sec-num {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; color: var(--ink-faint); letter-spacing: .1em; white-space: nowrap;
+  }
+
+  .meta-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 0; }
+  .chip {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px; letter-spacing: .04em;
+    border: 1px solid var(--line); border-radius: 3px;
+    padding: 5px 10px; color: var(--ink-soft); background: var(--panel);
+  }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 20px 22px; margin: 18px 0;
+    box-shadow: var(--shadow);
+  }
+  .panel > :last-child { margin-bottom: 0; }
+  .panel-title { margin: 0 0 10px; }
+
+  .callout {
+    background: var(--warn-bg); border: 1px solid var(--warn-line);
+    border-radius: 6px; padding: 18px 22px; margin: 18px 0;
+  }
+  .callout > :last-child { margin-bottom: 0; }
+  .callout .mono-label { color: var(--ink-soft); }
+
+  .diagram {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 18px; margin: 18px 0; overflow-x: auto;
+  }
+  .diagram pre.mermaid { margin: 0; min-width: 560px; }
+  .caption {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px; color: var(--ink-faint); letter-spacing: .04em;
+    margin-top: -8px; margin-bottom: 20px; padding-left: 4px;
+  }
+
+  .tbl-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--line); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase;
+    text-align: left; color: var(--ink-faint); font-weight: 600;
+    background: var(--panel-2); padding: 10px 14px; border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { white-space: nowrap; font-weight: 600; }
+
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: .88em; background: var(--code-bg);
+    padding: 2px 5px; border-radius: 3px;
+  }
+  pre.block {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; line-height: 1.55;
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: 18px 20px; overflow-x: auto; margin: 18px 0;
+  }
+
+  /* Medallion layers */
+  .medallion { display: grid; gap: 12px; margin: 18px 0; }
+  .layer {
+    display: grid; grid-template-columns: 110px 1fr; gap: 16px;
+    border: 1px solid var(--line); border-left-width: 5px;
+    border-radius: 6px; padding: 14px 18px; background: var(--panel);
+    align-items: start;
+  }
+  .layer .mono-label { padding-top: 2px; }
+  .layer p { margin: 0; font-size: 14.5px; color: var(--ink-soft); max-width: none; }
+  .layer p strong { color: var(--ink); }
+  .layer.bronze { border-left-color: var(--bronze); } .layer.bronze .mono-label { color: var(--bronze); }
+  .layer.silver { border-left-color: var(--silver); } .layer.silver .mono-label { color: var(--silver); }
+  .layer.gold { border-left-color: var(--gold); } .layer.gold .mono-label { color: var(--gold); }
+  .layer.platinum { border-left-color: var(--platinum); } .layer.platinum .mono-label { color: var(--platinum); }
+
+  /* Phase rail */
+  .phase { display: grid; grid-template-columns: 84px 1fr; gap: 0 20px; margin-bottom: 6px; }
+  .phase-marker {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; font-weight: 700; color: var(--accent);
+    letter-spacing: .06em; text-align: right; padding-top: 21px;
+  }
+  .phase-marker .wk { display: block; font-weight: 400; font-size: 11px; color: var(--ink-faint); margin-top: 3px; }
+  .phase-body {
+    border-left: 2px solid var(--line);
+    padding: 18px 0 26px 22px; position: relative;
+  }
+  .phase-body::before {
+    content: ""; position: absolute; left: -6px; top: 26px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--paper);
+  }
+  .phase:last-child .phase-body { padding-bottom: 8px; }
+  .phase h3 { margin: 0 0 8px; font-size: 17.5px; }
+  .phase p { font-size: 15px; margin-bottom: 10px; }
+  .learn-ship { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+  @media (max-width: 640px) {
+    .learn-ship { grid-template-columns: 1fr; }
+    .phase { grid-template-columns: 56px 1fr; }
+  }
+  .ls-box {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 5px;
+    padding: 12px 14px; font-size: 13.5px;
+  }
+  .ls-box .mono-label { display: block; font-size: 10.5px; margin-bottom: 6px; color: var(--ink-faint); }
+  .ls-box ul { margin: 0; padding-left: 16px; font-size: 13.5px; color: var(--ink-soft); }
+  .ls-box li { margin-bottom: 3px; }
+
+  .check-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 18px 0; }
+  .check {
+    display: flex; gap: 10px; align-items: baseline;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 5px;
+    padding: 12px 14px; font-size: 14px; color: var(--ink-soft);
+  }
+  .check::before { content: "▢"; color: var(--accent); font-size: 15px; }
+  .check strong { color: var(--ink); }
+
+  footer {
+    margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px; color: var(--ink-faint); letter-spacing: .05em;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+</style>
+
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">Architecture Blueprint · v2 · Aug 2026</span>
+  <h1>SiteForge — an AI Copilot that builds business websites</h1>
+  <p class="subtitle">A learning-driven build: one real product, every layer of the modern agent stack. You ship a copilot that interviews a business owner, generates their website, deploys it, and continuously evaluates its own output.</p>
+  <div class="meta-row">
+    <span class="chip">GCP + Firebase</span>
+    <span class="chip">Terraform</span>
+    <span class="chip">LangGraph</span>
+    <span class="chip">Temporal</span>
+    <span class="chip">OpenRouter</span>
+    <span class="chip">Remote MCP</span>
+    <span class="chip">Postgres · ClickHouse · Redis</span>
+    <span class="chip">Sentry</span>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><span class="sec-num">01</span><h2>What you're building</h2></div>
+  <p><strong>The product:</strong> a chat copilot for small-and-medium businesses. The owner signs in with Google, describes their business ("I run a bakery in Jaipur, I want online orders"), and the agent plans the site, writes the copy, picks a template and theme, assembles the pages, and deploys a live website to Firebase Hosting. Afterwards the owner iterates conversationally — "make the hero warmer", "add a pricing page" — and every published site is re-evaluated on a schedule for quality, SEO, and accessibility.</p>
+  <p><strong>The real goal:</strong> the product is the excuse; the stack is the curriculum. Every piece below exists to teach you one concept properly, and each phase of the plan ends with something deployed and demoable.</p>
+  <div class="panel">
+    <p class="panel-title mono-label">User journey (happy path)</p>
+    <ol>
+      <li><strong>Sign in</strong> — Google SSO via Firebase Auth.</li>
+      <li><strong>Interview</strong> — the LangGraph agent asks structured questions about the business.</li>
+      <li><strong>Generate</strong> — a Temporal workflow durably runs: plan → retrieve (RAG) → write copy → assemble pages → build.</li>
+      <li><strong>Deploy</strong> — the site goes live on a Firebase Hosting subdomain (<code>bakery-jaipur.web.app</code>).</li>
+      <li><strong>Iterate</strong> — chat edits trigger targeted regeneration, versioned in Postgres.</li>
+      <li><strong>Evaluate</strong> — a nightly cron scores every live site with an LLM judge; scores land in ClickHouse and feed back into the agent's examples.</li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">02</span><h2>System architecture</h2></div>
+  <p>Two deployment surfaces, exactly as your stack demands: <strong>Firebase</strong> hosts everything user-facing (the copilot app and every generated customer site), and <strong>GCP Cloud Run</strong> hosts every backend microservice. Both surfaces are created and wired entirely by Terraform.</p>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart TB
+    User(("Business owner"))
+
+    subgraph FB["Deployment Surface 1 · Firebase"]
+        UI["Copilot Web App\n(React + Firebase Hosting)"]
+        AUTH["Firebase Auth\nGoogle SSO"]
+        SITES["Generated business sites\n(Hosting multi-site)"]
+    end
+
+    subgraph RUN["Deployment Surface 2 · GCP Cloud Run"]
+        GW["api-gateway\nverify ID token, route, rate-limit"]
+        AGENT["agent-service\nLangGraph graph + tools"]
+        RAGS["rag-service\ningest / embed / retrieve"]
+        MCP["mcp-server\nremote MCP over HTTP"]
+        EVAL["eval-service\nLLM-as-judge scoring"]
+        WORK["temporal-workers\nsite-generation workflows"]
+    end
+
+    subgraph DATA["Data layer"]
+        PG[("Postgres + pgvector\nCloud SQL")]
+        CH[("ClickHouse\nevents · traces · evals")]
+        RD[("Redis\nMemorystore")]
+    end
+
+    OR["OpenRouter\nLLM gateway"]
+    TC["Temporal Server\n(dev: local · prod: Temporal Cloud)"]
+    SCHED["Cloud Scheduler\nnightly eval cron"]
+    SENTRY["Sentry"]
+
+    User --> UI
+    UI --> AUTH
+    UI --> GW
+    GW --> AGENT
+    AGENT --> RAGS
+    AGENT --> OR
+    AGENT --> TC
+    TC --> WORK
+    WORK --> OR
+    WORK --> SITES
+    MCP --> AGENT
+    SCHED --> EVAL
+    EVAL --> OR
+    EVAL --> CH
+    AGENT --> PG
+    RAGS --> PG
+    WORK --> PG
+    GW --> RD
+    AGENT --> RD
+    AGENT -.traces.-> CH
+    RUN -.errors.-> SENTRY
+    UI -.errors.-> SENTRY
+</pre>
+  </div>
+  <p class="caption">Fig. 1 — Every arrow here is a thing you will build and can explain by the end.</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Component</th><th>Runs on</th><th>What it teaches you</th></tr></thead>
+      <tbody>
+        <tr><td>Copilot web app</td><td>Firebase Hosting</td><td>Firebase deploys, Auth SDK, streaming chat UI over SSE</td></tr>
+        <tr><td>api-gateway</td><td>Cloud Run</td><td>Verifying Firebase ID tokens server-side, rate limiting with Redis, service-to-service auth via IAM</td></tr>
+        <tr><td>agent-service</td><td>Cloud Run</td><td>LangGraph state graphs, tool calling, checkpointing agent state in Postgres, streaming tokens</td></tr>
+        <tr><td>temporal-workers</td><td>Cloud Run (always-on)</td><td>Durable workflows, activities, retries, signals, the determinism rule</td></tr>
+        <tr><td>rag-service</td><td>Cloud Run</td><td>Chunking, embeddings, pgvector similarity search, ingestion pipelines</td></tr>
+        <tr><td>mcp-server</td><td>Cloud Run</td><td>Remote MCP: exposing your agent's tools to any MCP client (Claude, others) over HTTP</td></tr>
+        <tr><td>eval-service</td><td>Cloud Run + Cloud Scheduler</td><td>LLM-as-judge, rubric design, writing results to ClickHouse on a cron</td></tr>
+        <tr><td>Generated sites</td><td>Firebase Hosting multi-site</td><td>Programmatic deploys — your agent calls the Firebase API as a tool</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">03</span><h2>Temporal vs LangGraph — get this mental model right first</h2></div>
+  <div class="callout">
+    <p class="mono-label">Correction to your notes</p>
+    <p>Your notes have it inverted: Temporal is the <strong>deterministic</strong> side, and the LLM/agent is the <strong>non-deterministic</strong> side. A Temporal <em>workflow</em> must be strictly deterministic (that's how it can replay and survive crashes). Anything non-deterministic — every LLM call, every external API — is wrapped in a Temporal <em>activity</em>, which is allowed to be flaky and gets automatic retries.</p>
+  </div>
+  <p>So the two are not competitors — they nest:</p>
+  <ul>
+    <li><strong>LangGraph</strong> is the agent's <em>brain</em>: a graph of nodes (interview → plan → retrieve → write → critique → assemble) with tools/actions and integrations. It decides <em>what to do next</em> within a reasoning session.</li>
+    <li><strong>Temporal</strong> is the <em>spine</em>: it makes the multi-minute site-generation job durable. If a worker dies mid-generation, the workflow resumes exactly where it left off. It owns retries, timeouts, human-in-the-loop signals ("owner approved the draft"), and the deploy step.</li>
+    <li><strong>The pattern:</strong> a Temporal workflow orchestrates the job; one of its activities <em>runs the LangGraph agent</em>; the agent calls OpenRouter and tools inside that activity.</li>
+  </ul>
+
+  <div class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+    participant U as Owner (chat)
+    participant A as agent-service (LangGraph)
+    participant T as Temporal workflow
+    participant W as Activities (workers)
+    participant O as OpenRouter
+    participant F as Firebase Hosting
+
+    U->>A: "Build my bakery a website"
+    A->>A: interview nodes gather requirements
+    A->>T: start GenerateSiteWorkflow(spec)
+    T->>W: activity: run agent graph (plan + copy)
+    W->>O: LLM calls (retried on failure)
+    O-->>W: pages + copy
+    T->>W: activity: assemble & build site
+    T->>U: signal: "draft ready — approve?"
+    U-->>T: approve
+    T->>W: activity: deploy
+    W->>F: firebase hosting release
+    T-->>A: workflow complete (site URL)
+    A-->>U: "Your site is live 🎉"
+</pre>
+  </div>
+  <p class="caption">Fig. 2 — Temporal owns durability and the approval gate; LangGraph owns reasoning.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">04</span><h2>Data platform — medallion layers on ClickHouse</h2></div>
+  <p>Three stores, each with one clear job. <strong>Postgres</strong> (Cloud SQL) is the operational database: users, projects, sites, page versions, LangGraph checkpoints, and pgvector embeddings for RAG. <strong>Redis</strong> (Memorystore) handles caching, rate-limit counters, and pub/sub for streaming tokens to the UI. <strong>ClickHouse</strong> is the analytical store where the medallion architecture lives:</p>
+
+  <div class="medallion">
+    <div class="layer bronze">
+      <span class="mono-label">Bronze</span>
+      <p><strong>Raw, append-only.</strong> Every LLM request/response, agent trace, chat transcript, Temporal event, tool call — landed as-is with a timestamp. Never edited, only appended.</p>
+    </div>
+    <div class="layer silver">
+      <span class="mono-label">Silver</span>
+      <p><strong>Cleaned &amp; typed.</strong> Parsed traces: one row per agent step with model, latency, token counts, cost. Eval results normalized to a fixed rubric schema. Built with scheduled ClickHouse materialized views.</p>
+    </div>
+    <div class="layer gold">
+      <span class="mono-label">Gold</span>
+      <p><strong>Business aggregates.</strong> Cost per generated site, generation success rate, eval-score trends per template, p95 generation latency — the tables a dashboard reads directly.</p>
+    </div>
+    <div class="layer platinum">
+      <span class="mono-label">Platinum</span>
+      <p><strong>Agent-facing feedback loop.</strong> The highest-scoring sites and copy become curated few-shot examples, exported back into the RAG corpus. This layer is what makes the system <em>self-improving</em> — and it's the most interesting part of your whitepaper.</p>
+    </div>
+  </div>
+
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    SRC["Services emit events\n(agent, workers, eval)"] --> B["Bronze\nraw events"]
+    B -->|"materialized views"| S["Silver\ntyped steps, costs, scores"]
+    S -->|"scheduled aggregates"| G["Gold\nbusiness metrics"]
+    S --> P["Platinum\ncurated examples"]
+    P -->|"re-ingest"| RAG["RAG corpus\n(pgvector)"]
+    G --> DASH["Metrics dashboard"]
+</pre>
+  </div>
+  <p class="caption">Fig. 3 — The eval → platinum → RAG loop closes the system.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">05</span><h2>Evaluation layer</h2></div>
+  <p>Cloud Scheduler fires a cron (nightly to start). The eval-service pulls every site published or updated since the last run and scores it with an LLM judge through OpenRouter against a fixed rubric:</p>
+  <ul>
+    <li><strong>Content quality</strong> — is the copy specific to this business, or generic filler?</li>
+    <li><strong>SEO basics</strong> — titles, meta descriptions, heading structure, alt text.</li>
+    <li><strong>Accessibility</strong> — contrast, landmarks, form labels (mix of LLM judge + deterministic checks like Lighthouse).</li>
+    <li><strong>Brand consistency</strong> — does the tone match what the owner asked for in the interview?</li>
+  </ul>
+  <p>Scores are written to ClickHouse (bronze → silver), trends surface in gold, and top performers graduate to platinum. Key learning here: <strong>always pair the LLM judge with deterministic checks</strong> — the judge for taste, scripts for facts.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">06</span><h2>Infrastructure as Code — Terraform layout</h2></div>
+  <p>Everything above is declared in Terraform: the GCP project services, Cloud Run services, Cloud SQL, Memorystore, Secret Manager, Cloud Scheduler, service accounts and IAM bindings, and the Firebase resources (via the <code>google-beta</code> provider). State lives in a GCS backend. Two environments — <code>dev</code> and <code>prod</code> — as separate root directories sharing the same modules.</p>
+  <pre class="block">infra/
+├── modules/
+│   ├── network/          # VPC, serverless VPC connector
+│   ├── cloud-run-service/  # reusable: one microservice = one module call
+│   ├── postgres/         # Cloud SQL + pgvector, private IP
+│   ├── redis/            # Memorystore
+│   ├── firebase/         # project, hosting sites, auth config
+│   ├── scheduler/        # eval cron → Cloud Run invoker
+│   └── secrets/          # Secret Manager entries + IAM
+└── envs/
+    ├── dev/              # small tiers, scale-to-zero
+    │   ├── main.tf  backend.tf  terraform.tfvars
+    └── prod/</pre>
+  <p>The repo is a monorepo, public on GitHub, with GitHub Actions running <code>terraform plan</code> on PRs and per-service Docker build → Cloud Run deploy on merge:</p>
+  <pre class="block">siteforge/
+├── apps/web/             # copilot UI (React)
+├── services/
+│   ├── gateway/  agent/  rag/  workers/  mcp/  eval/
+├── infra/                # terraform (above)
+├── packages/shared/      # schemas, types, prompt library
+├── docker-compose.yml    # local: postgres, redis, clickhouse, temporal dev
+├── .github/workflows/
+└── docs/whitepaper/      # drafts before they land on Notion</pre>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">07</span><h2>Build plan — 12 weeks, each phase ships something</h2></div>
+  <p>The order is deliberate: infrastructure first (so every later phase deploys instead of piling up localhost demos), then the agent core, then durability, then the data/eval flywheel. Don't reorder phases 1–3; after that, 6 and 7 can swap if you want MCP earlier.</p>
+
+  <div class="phase">
+    <div class="phase-marker">P0<span class="wk">wk 1</span></div>
+    <div class="phase-body">
+      <h3>Repo &amp; local spine</h3>
+      <p>Public GitHub monorepo, docker-compose bringing up Postgres, Redis, ClickHouse, and the Temporal dev server locally. A README that states the vision — this becomes your whitepaper's skeleton.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>Monorepo layout</li><li>Local multi-service dev with compose</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li><code>docker compose up</code> → all four stores healthy</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-marker">P1<span class="wk">wk 1–2</span></div>
+    <div class="phase-body">
+      <h3>Terraform + GCP foundation</h3>
+      <p>New GCP project, GCS state backend, first modules: network, service accounts, Secret Manager. Deploy one hello-world Cloud Run service purely through <code>terraform apply</code> — no console clicking, ever.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>Providers, state, plan/apply lifecycle</li><li>Modules &amp; variables</li><li>GCP IAM fundamentals</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li><code>infra/envs/dev</code> applying cleanly</li><li>Hello-world URL on Cloud Run</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-marker">P2<span class="wk">wk 2–3</span></div>
+    <div class="phase-body">
+      <h3>Firebase + Google SSO</h3>
+      <p>Firebase project via Terraform (<code>google-beta</code>), Hosting for the copilot shell, Auth with Google sign-in. The gateway service verifies Firebase ID tokens — your first real microservice and Deployment Surface 1 complete.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>Firebase in Terraform</li><li>OIDC flow: what the ID token actually contains</li><li>Server-side token verification</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li>Login with Google → authenticated API call round-trip</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-marker">P3<span class="wk">wk 3–4</span></div>
+    <div class="phase-body">
+      <h3>Postgres schema + CI/CD</h3>
+      <p>Cloud SQL via Terraform, migrations for users / projects / sites / site_versions, GitHub Actions pipeline: plan on PR, build-and-deploy on merge. From here on, every phase deploys automatically.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>Schema design for versioned artifacts</li><li>Migrations discipline</li><li>OIDC keyless auth from GitHub Actions to GCP</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li>Merge to main → live in dev automatically</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-marker">P4<span class="wk">wk 4–6</span></div>
+    <div class="phase-body">
+      <h3>The agent — LangGraph + OpenRouter</h3>
+      <p>The heart. Build the graph: interview → plan → write → critique nodes, tools as typed actions (create_page, set_theme, deploy_site — stubbed deploys for now), Postgres checkpointer so conversations survive restarts, token streaming to the UI through Redis pub/sub. Two weeks because this is the concept you most need to internalize.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>State graphs, conditional edges, cycles</li><li>Tool/function calling properly</li><li>OpenRouter routing &amp; fallback models</li><li>Checkpointing = agent memory</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li>Chat that interviews you and produces a full site plan + copy</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-marker">P5<span class="wk">wk 6–7</span></div>
+    <div class="phase-body">
+      <h3>Temporal — durable generation</h3>
+      <p>Wrap generation in <code>GenerateSiteWorkflow</code>: agent activity → assemble activity → approval signal → deploy activity (now real: Firebase Hosting API). Kill a worker mid-run and watch it resume — that demo is the whole point of Temporal.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>Workflows vs activities, the determinism rule</li><li>Retries, timeouts, heartbeats</li><li>Signals for human-in-the-loop</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li>End-to-end: chat → approval → live site on a subdomain</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-marker">P6<span class="wk">wk 7–8</span></div>
+    <div class="phase-body">
+      <h3>RAG pipeline</h3>
+      <p>Ingestion service: template docs, design guidelines, industry copy examples → chunk → embed → pgvector. Add a retrieve node to the graph so the writer node is grounded in real examples instead of vibes. Measure before/after on the same prompts.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>Chunking strategies &amp; why they matter</li><li>Embeddings + similarity search in pgvector</li><li>Grounding vs hallucination, measured</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li>Retrieval-grounded generation with a visible quality diff</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-marker">P7<span class="wk">wk 8–9</span></div>
+    <div class="phase-body">
+      <h3>Remote MCP server</h3>
+      <p>Expose your tools (create_site, get_site_status, update_copy) as a remote MCP server on Cloud Run with OAuth. Connect it to Claude and build a site from a completely different client — proof your tool layer is a real, reusable surface.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>MCP protocol: tools, resources, auth</li><li>Remote vs stdio servers</li><li>Designing tools agents can actually use well</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li>Claude building a SiteForge site via your MCP URL</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-marker">P8<span class="wk">wk 9–10</span></div>
+    <div class="phase-body">
+      <h3>ClickHouse + evaluation flywheel</h3>
+      <p>Stand up ClickHouse (start with a single self-hosted node or ClickHouse Cloud trial), emit traces from every service into bronze, build silver/gold materialized views, then the cron eval: Cloud Scheduler → eval-service → LLM judge → scores. Close the loop: top scorers exported to platinum and re-ingested into RAG.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>Columnar DBs &amp; materialized views</li><li>Medallion modeling hands-on</li><li>LLM-as-judge rubric design</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li>Nightly scores + a gold-layer metrics dashboard</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-marker">P9<span class="wk">wk 10–11</span></div>
+    <div class="phase-body">
+      <h3>Hardening — Redis patterns + Sentry</h3>
+      <p>Rate limiting and response caching in Redis, Sentry across all services and the frontend with release tracking, structured logging, and a load test on the generation workflow. Break things on purpose; watch them land in Sentry.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>Cache/limit/pub-sub Redis patterns</li><li>Error tracking &amp; alerting that's actually useful</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li>A system you'd let a stranger use</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-marker">P10<span class="wk">wk 11–12</span></div>
+    <div class="phase-body">
+      <h3>Whitepaper on Notion + prod cut</h3>
+      <p>Apply <code>infra/envs/prod</code>, record a demo, and write the whitepaper on Notion: architecture, the Temporal×LangGraph pattern, the medallion eval flywheel, real cost numbers from your gold layer, and honest lessons learned. Publish the repo README linking to it.</p>
+      <div class="learn-ship">
+        <div class="ls-box"><span class="mono-label">You learn</span><ul><li>Writing about systems — the fastest way to find what you don't understand</li></ul></div>
+        <div class="ls-box"><span class="mono-label">You ship</span><ul><li>Public repo + Notion whitepaper + live demo</li></ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">08</span><h2>Keeping cost near zero</h2></div>
+  <ul>
+    <li><strong>Cloud Run</strong> scales to zero — dev environment costs pennies. Keep only the Temporal worker warm when actively testing workflows.</li>
+    <li><strong>Temporal</strong>: dev server locally (free); Temporal Cloud's free credits when you need hosted, or a small self-hosted instance.</li>
+    <li><strong>ClickHouse</strong>: run it in docker-compose until phase 8; single small VM or Cloud trial after.</li>
+    <li><strong>OpenRouter</strong>: use cheap/free-tier models for development loops, switch to a strong model only for final generation and judging. Your bronze layer gives you exact per-call costs from day one.</li>
+    <li><strong>Cloud SQL</strong> is the one fixed cost — smallest tier (<code>db-f1-micro</code>) for dev, and stop the instance when idle.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">09</span><h2>Design review (v2) — gaps found &amp; fixes</h2></div>
+  <p>A deep pass over v1 surfaced one architectural trap and five smaller gaps. All fixes are folded into the phase plan; this section records what changed and why.</p>
+
+  <h3>1 · Firebase Hosting caps at 36 sites per project ⚠️</h3>
+  <p>The plan deploys each customer site as a Firebase Hosting sub-site — but Firebase allows a <strong>maximum of 36 sites per project</strong>. Fine for the learning build; a real product would hit the wall at customer #37. The fix costs nothing now: put deploys behind a <code>SiteDeployer</code> interface from day one, with Firebase as the first implementation. The production-scale swap later is a GCS bucket + Cloud CDN (one bucket path per site, effectively unlimited) — a one-class change instead of a rewrite. Designing behind an interface because a quota exists is itself a lesson worth having.</p>
+
+  <h3>2 · No cost guardrails — anyone with a Google account can spend your money</h3>
+  <p>Google SSO is open sign-up, and every generation burns OpenRouter tokens. Three cheap defenses, all added to the plan: a <strong>per-user generation quota</strong> in Redis (e.g. 3 sites/day) enforced at the gateway (P4); <strong>GCP budget alerts declared in Terraform</strong> — billing guardrails as code (P1); and a hard <strong>spend limit on the OpenRouter key</strong> (P4).</p>
+
+  <h3>3 · No content-safety gate before publishing</h3>
+  <p>Generated sites publish under <em>your</em> Firebase project — if a user asks for a phishing page or scam storefront, you're the publisher. Fix: a <strong>moderation activity</strong> in the Temporal workflow between "assemble" and "deploy" — a cheap model call that classifies the site against a blocklist (fraud, impersonation, adult, illegal) and fails the workflow with a clear reason. Slots naturally into P5 and doubles as a lesson in guarding agent outputs, not just inputs.</p>
+
+  <h3>4 · Temporal workers don't fit Cloud Run's default model</h3>
+  <p>Cloud Run bills per request and idles CPU between requests — but a Temporal worker isn't a web server; it long-polls the task queue continuously. It needs <code>min_instances = 1</code> with <strong>instance-based billing</strong> (CPU always allocated) — roughly $10–15/month, the one always-on cost in the system (trial credits absorb it; run the worker locally against the Temporal dev server outside credit windows). Knowing <em>why</em> pollers break request-based autoscaling is a genuinely useful piece of platform knowledge.</p>
+
+  <h3>5 · No testing story for the agent</h3>
+  <p>The eval cron scores <em>production</em> output, but nothing stops a prompt change from shipping a regression. Fix: a <strong>golden set</strong> of ~10 synthetic businesses (bakery, law firm, gym…) built in P4, run through the graph on every PR that touches prompts or graph code, scored by the same judge rubric — merge blocks if scores drop (automated in P8). Plus Temporal's <strong>replay testing</strong> in P5 to prove workflow changes don't break in-flight generations. Offline evals in CI is arguably the highest-value habit in the whole project.</p>
+
+  <h3>6 · Generated sites have no images</h3>
+  <p>v1 generated copy and layout but no visual assets — every site would ship as text soup. Fix: a <code>pick_images</code> tool on the agent (P6) that searches a free stock-photo API (Pexels/Unsplash) by scene description, plus a GCS bucket for per-site assets in the Terraform baseline. Image selection quality also becomes a rubric line in the eval layer.</p>
+
+  <div class="panel">
+    <p class="panel-title mono-label">Minor items (one-liners, folded into phases)</p>
+    <ul>
+      <li><strong>Public-repo secret hygiene</strong> — enable GitHub push protection + a gitleaks CI job in P0, before any cloud credential exists.</li>
+      <li><strong>Cloud SQL backups</strong> — automated backups + point-in-time recovery flags in the Terraform module (P3), not clicked on later.</li>
+      <li><strong>ClickHouse ingestion</strong> — use async inserts / small batches from services rather than row-at-a-time writes (P8).</li>
+      <li><strong>Redis connection pools</strong> — keep pools small (2–3 per service); serverless instances multiply connections fast (P9).</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">10</span><h2>Definition of done</h2></div>
+  <div class="check-grid">
+    <div class="check"><span><strong>IaC</strong> — zero console-created resources; everything reproducible from <code>terraform apply</code></span></div>
+    <div class="check"><span><strong>Two surfaces</strong> — Firebase (app + generated sites) and Cloud Run (six services) both live</span></div>
+    <div class="check"><span><strong>Google SSO</strong> — end-to-end verified auth, no API reachable without it</span></div>
+    <div class="check"><span><strong>Agent</strong> — LangGraph graph with tools, checkpoints, and streaming</span></div>
+    <div class="check"><span><strong>Durability</strong> — kill a worker mid-generation, workflow resumes and completes</span></div>
+    <div class="check"><span><strong>RAG</strong> — retrieval measurably improves output on a fixed prompt set</span></div>
+    <div class="check"><span><strong>Remote MCP</strong> — an external MCP client builds a site through your server</span></div>
+    <div class="check"><span><strong>Eval flywheel</strong> — nightly cron scores sites; platinum examples feed back into RAG</span></div>
+    <div class="check"><span><strong>Medallion</strong> — bronze→silver→gold→platinum queryable in ClickHouse</span></div>
+    <div class="check"><span><strong>Observability</strong> — Sentry catching real errors across every service</span></div>
+    <div class="check"><span><strong>Public repo</strong> — clean history, README, CI green</span></div>
+    <div class="check"><span><strong>Whitepaper</strong> — published on Notion with real numbers from your gold layer</span></div>
+    <div class="check"><span><strong>Safety gate</strong> — moderation activity blocks a deliberately bad site before deploy</span></div>
+    <div class="check"><span><strong>Cost guardrails</strong> — per-user quota, budget alerts in Terraform, OpenRouter spend cap</span></div>
+    <div class="check"><span><strong>CI evals</strong> — golden-set regression run blocks a prompt change that drops scores</span></div>
+  </div>
+</section>
+
+<footer>
+  <span>SITEFORGE · ARCHITECTURE BLUEPRINT v2</span>
+  <span>12 WEEKS · 6 SERVICES · 2 SURFACES · 1 FLYWHEEL</span>
+</footer>
+
+</div>

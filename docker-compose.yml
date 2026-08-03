@@ -1,0 +1,86 @@
+name: siteforge
+
+services:
+  # Operational DB. pgvector image = stock Postgres 16 + the vector extension,
+  # so the same instance later serves RAG embeddings (Phase 6) without a second store.
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: siteforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-siteforge_dev}
+      POSTGRES_DB: siteforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U siteforge"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Analytical store — the medallion layers (Phase 8) live here.
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: siteforge
+      CLICKHOUSE_USER: siteforge
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-siteforge_dev}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "8123:8123" # HTTP interface (queries via curl / drivers)
+      - "9000:9000" # native protocol
+    # ClickHouse refuses to start with the default macOS/Docker file-handle limit.
+    ulimits:
+      nofile: 262144
+    volumes:
+      - chdata:/var/lib/clickhouse
+    healthcheck:
+      # 127.0.0.1, not localhost: busybox wget prefers ::1 and the VM has no IPv6
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # auto-setup creates its own `temporal` + `temporal_visibility` databases
+  # inside the postgres above on first boot.
+  temporal:
+    image: temporalio/auto-setup:latest # TODO: pin once we pick our SDK version in Phase 5
+    # first boot can lose the race against a cold/busy postgres — retry instead of dying
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: siteforge
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:-siteforge_dev}
+      POSTGRES_SEEDS: postgres
+    ports:
+      - "7233:7233" # gRPC — workers and clients connect here
+
+  temporal-ui:
+    image: temporalio/ui:latest
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8233:8080" # http://localhost:8233
+
+volumes:
+  pgdata:
+  chdata:
