@@ -13,6 +13,29 @@ const PHASE_LABEL: Record<string, string> = {
   critiquing: "Reviewing quality…",
 };
 
+const STARTERS = [
+  {
+    emoji: "🍰",
+    label: "Bakery with custom cakes",
+    prompt: "I run a bakery that specialises in custom wedding cakes and want a website for it.",
+  },
+  {
+    emoji: "☕",
+    label: "Minimal coffee bar",
+    prompt: "I'm opening a minimalist specialty coffee bar for young professionals and need a website.",
+  },
+  {
+    emoji: "🧘",
+    label: "Yoga studio",
+    prompt: "I own a yoga studio offering beginner-friendly classes and want a calm, welcoming website.",
+  },
+  {
+    emoji: "🛠️",
+    label: "Local repair service",
+    prompt: "I run a home appliance repair service and want a website where customers can request a visit.",
+  },
+];
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,22 +99,18 @@ export default function App() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, phase]);
 
-  async function newChat() {
-    if (!user) return;
-    const { thread_id } = await fetch("/agent/chats", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: user.uid }),
-    }).then((r) => r.json());
-    await loadChats(user);
-    setThread(thread_id);
+  function newChat() {
+    // no API call — the thread is created on the FIRST message, so an
+    // abandoned "new chat" never leaves an empty row in the sidebar
+    setThread(null);
     setMsgs([]);
     setDraft(null);
     setPhase(null);
   }
 
-  async function send() {
-    if (!user || !input.trim() || busy) return;
+  async function send(textOverride?: string) {
+    const raw = textOverride ?? input;
+    if (!user || !raw.trim() || busy) return;
     let tid = thread;
     if (!tid) {
       const created = await fetch("/agent/chats", {
@@ -103,7 +122,7 @@ export default function App() {
       setThread(tid);
     }
 
-    const text = input.trim();
+    const text = raw.trim();
     setInput("");
     setMsgs((m) => [...m, { role: "user", text }]);
     setBusy(true);
@@ -196,6 +215,14 @@ export default function App() {
               <p className="muted">
                 Describe your business — I'll interview you, then design and write your website.
               </p>
+              <div className="chips">
+                {STARTERS.map((s) => (
+                  <button key={s.label} className="chip" onClick={() => send(s.prompt)}>
+                    <span className="chip-emoji">{s.emoji}</span>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {msgs.map((m, i) =>
