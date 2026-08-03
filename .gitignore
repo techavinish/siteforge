@@ -19,13 +19,12 @@ node_modules/
 dist/
 *.local
 
-# terraform
+# terraform — state and variable values stay local; the lock file IS committed
 .terraform/
 *.tfstate
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
-.terraform.lock.hcl
 
 # os / editor
 .DS_Store

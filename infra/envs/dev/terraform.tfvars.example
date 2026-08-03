@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+project_id         = "siteforge-dev-XXXXXX"
+region             = "asia-south1"
+billing_account_id = "" # from: gcloud billing accounts list
