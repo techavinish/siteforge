@@ -14,14 +14,14 @@ import {
   X,
 } from "lucide-react";
 
-export const IconPanel = () => <PanelLeft size={16} strokeWidth={1.8} />;
-export const IconPlus = () => <Plus size={16} strokeWidth={2} />;
-export const IconSearch = () => <Search size={14} strokeWidth={1.8} />;
-export const IconX = () => <X size={14} strokeWidth={2} />;
-export const IconLogout = () => <LogOut size={15} strokeWidth={1.8} />;
-export const IconPencil = () => <Pencil size={13} strokeWidth={1.8} />;
-export const IconExpand = () => <Maximize2 size={14} strokeWidth={1.8} />;
-export const IconGlobe = () => <Globe size={16} strokeWidth={1.8} />;
-export const IconArrowUp = () => <ArrowUp size={17} strokeWidth={2.4} />;
-export const IconStop = () => <Square size={14} strokeWidth={2} fill="currentColor" />;
-export const IconChevronDown = () => <ChevronDown size={22} strokeWidth={2.8} />;
+export const IconPanel = () => <PanelLeft size={17} strokeWidth={1.9} />;
+export const IconPlus = () => <Plus size={16} strokeWidth={2.1} />;
+export const IconSearch = () => <Search size={14} strokeWidth={1.9} />;
+export const IconX = () => <X size={15} strokeWidth={2.1} />;
+export const IconLogout = () => <LogOut size={16} strokeWidth={1.9} />;
+export const IconPencil = () => <Pencil size={14} strokeWidth={1.9} />;
+export const IconExpand = () => <Maximize2 size={15} strokeWidth={1.9} />;
+export const IconGlobe = () => <Globe size={17} strokeWidth={1.9} />;
+export const IconArrowUp = () => <ArrowUp size={18} strokeWidth={2.4} />;
+export const IconStop = () => <Square size={15} strokeWidth={2} fill="currentColor" />;
+export const IconChevronDown = () => <ChevronDown size={28} strokeWidth={2.6} />;

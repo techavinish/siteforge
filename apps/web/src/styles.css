@@ -361,7 +361,7 @@ button.primary:disabled { opacity: 0.45; }
 .jump-down {
   /* no circle — just the arrow, per design */
   position: absolute; bottom: 96px; left: 0; right: 0; margin-inline: auto;
-  width: 40px; height: 40px;
+  width: 48px; height: 48px;
   display: inline-flex; align-items: center; justify-content: center;
   background: none; border: none; cursor: pointer; z-index: 5;
   animation: fade 0.18s ease both;
