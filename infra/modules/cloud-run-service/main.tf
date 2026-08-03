@@ -8,8 +8,10 @@ resource "google_cloud_run_v2_service" "this" {
 
   lifecycle {
     # the API populates a service-level scaling block we don't manage
-    # (we scale via template.scaling) — ignore it to avoid a perma-diff
-    ignore_changes = [scaling]
+    # (we scale via template.scaling) — ignore it to avoid a perma-diff.
+    # image is ignored because CI deploys new tags outside terraform:
+    # terraform owns the service's SHAPE, CI owns its CONTENTS.
+    ignore_changes = [scaling, template[0].containers[0].image]
   }
 
   template {

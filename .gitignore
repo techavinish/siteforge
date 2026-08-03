@@ -18,6 +18,8 @@ __pycache__/
 node_modules/
 dist/
 *.local
+.firebase/
+*.tsbuildinfo
 
 # terraform — state and variable values stay local; the lock file IS committed
 .terraform/
@@ -30,3 +32,4 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+db/cloud-sql-proxy

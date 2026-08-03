@@ -12,6 +12,10 @@ locals {
     "firebasehosting.googleapis.com",
     "identitytoolkit.googleapis.com",
     "serviceusage.googleapis.com",
+    "cloudbuild.googleapis.com",
+    "sqladmin.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "sts.googleapis.com",
   ]
 }
 

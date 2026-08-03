@@ -11,6 +11,10 @@ output "hosting_url" {
   value = "https://${google_firebase_hosting_site.copilot.site_id}.web.app"
 }
 
+output "gateway_url" {
+  value = module.gateway.uri
+}
+
 # Public client config for the web app (api_key here is an identifier,
 # not a secret — Firebase security comes from Auth rules + IAM)
 output "firebase_web_config" {

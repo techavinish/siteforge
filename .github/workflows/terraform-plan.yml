@@ -1,0 +1,35 @@
+name: terraform plan
+
+on:
+  pull_request:
+    paths: ["infra/**"]
+
+# WIF handshake: the job requests an OIDC token from GitHub (id-token),
+# Google verifies it came from techavinish/siteforge, and only then
+# issues short-lived credentials for the deployer service account.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/envs/dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/247435823944/locations/global/workloadIdentityPools/github/providers/github-oidc
+          service_account: github-deployer@siteforge-dev-3977.iam.gserviceaccount.com
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - run: terraform init
+      - run: terraform validate
+      - run: terraform plan -no-color
+        env:
+          TF_VAR_project_id: siteforge-dev-3977
+          TF_VAR_billing_account_id: ${{ secrets.GCP_BILLING_ACCOUNT_ID }}
