@@ -83,6 +83,16 @@ services:
     ports:
       - "8233:8080" # http://localhost:8233
 
+  # app metrics dashboards (P9) — http://localhost:3001, admin/admin
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafdata:/var/lib/grafana
+
 volumes:
   pgdata:
   chdata:
+  grafdata:

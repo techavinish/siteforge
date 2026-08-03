@@ -8,3 +8,5 @@ markdown==3.*
 google-auth==2.*
 requests==2.*
 temporalio==1.*
+langfuse==2.*
+sentry-sdk[fastapi]==2.*

@@ -5,8 +5,15 @@ against Google's public keys (via firebase-admin), so a forged or expired
 token is rejected before any business logic runs.
 """
 
+import os
+
 import firebase_admin
 from fastapi import Depends, FastAPI, HTTPException, Request
+
+if os.environ.get("SENTRY_DSN"):
+    import sentry_sdk
+
+    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], traces_sample_rate=0.1)
 from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import auth
 

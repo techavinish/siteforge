@@ -4,10 +4,17 @@ Internal service: called by the agent's write node, not by browsers,
 so it stays inside the private network (no token auth needed here —
 Cloud Run ingress will restrict it later)."""
 
+import os
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 
 import store
+
+if os.environ.get("SENTRY_DSN"):
+    import sentry_sdk
+
+    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], traces_sample_rate=0.1)
 
 app = FastAPI(title="siteforge-rag")
 store.setup()

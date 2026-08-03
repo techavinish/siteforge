@@ -10,9 +10,16 @@ resumed conversation, from any client, after any restart.
 """
 
 import json
+import os
 import uuid
 
 import psycopg
+
+# errors from every request land in sentry (no-op without the DSN)
+if os.environ.get("SENTRY_DSN"):
+    import sentry_sdk
+
+    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], traces_sample_rate=0.1)
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from google.auth.transport import requests as google_requests
@@ -399,7 +406,26 @@ def draft(thread_id: str, uid: str = Depends(current_uid)):
     }
 
 
-TEMPORAL_ADDRESS = __import__("os").environ.get("TEMPORAL_ADDRESS", "localhost:7233")
+TEMPORAL_ADDRESS = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
+
+
+def _trace_config(thread_id: str, uid: str) -> dict:
+    """Langfuse tracing for every agent run — full LLM call tree with
+    latency and token counts, grouped by conversation. No-op without keys."""
+    if not os.environ.get("LANGFUSE_SECRET_KEY"):
+        return {}
+    try:
+        from langfuse.langchain import CallbackHandler
+
+        return {
+            "callbacks": [CallbackHandler()],
+            "metadata": {
+                "langfuse_session_id": thread_id,
+                "langfuse_user_id": uid,
+            },
+        }
+    except Exception:
+        return {}
 
 
 async def _temporal():
@@ -483,7 +509,7 @@ def publish(thread_id: str, uid: str = Depends(current_uid)):
 @app.post("/agent/chat")
 def chat(body: ChatIn, uid: str = Depends(current_uid)):
     own_thread(body.thread_id, uid)
-    config = {"configurable": {"thread_id": body.thread_id}}
+    config = {"configurable": {"thread_id": body.thread_id}, **_trace_config(body.thread_id, uid)}
 
     # bump recency; the title is LLM-generated after the reply streams
     with psycopg.connect(DATABASE_URL) as conn:
