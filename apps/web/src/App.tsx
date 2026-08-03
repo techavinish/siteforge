@@ -3,7 +3,7 @@ import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebas
 import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
 import ConfirmModal from "./ConfirmModal";
-import { IconChevronDown, IconGlobe, IconStop } from "./icons";
+import { IconArrowUp, IconChevronDown, IconGlobe, IconStop } from "./icons";
 import Preview, { type Draft } from "./Preview";
 import Sidebar, { type ChatMeta } from "./Sidebar";
 import Thinking, { type ThinkBlock } from "./Thinking";
@@ -540,12 +540,17 @@ export default function App() {
             disabled={busy}
           />
           {busy ? (
-            <button className="stop" onClick={stopStream} data-tip="Stop generating">
+            <button className="round-action stop" onClick={stopStream} data-tip="Stop generating">
               <IconStop />
             </button>
           ) : (
-            <button className="primary" onClick={() => send()} disabled={!input.trim()}>
-              Send
+            <button
+              className="round-action send"
+              onClick={() => send()}
+              disabled={!input.trim()}
+              aria-label="Send message"
+            >
+              <IconArrowUp />
             </button>
           )}
         </footer>

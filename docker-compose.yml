@@ -5,6 +5,7 @@ services:
   # so the same instance later serves RAG embeddings (Phase 6) without a second store.
   postgres:
     image: pgvector/pgvector:pg16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: siteforge
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-siteforge_dev}
@@ -21,6 +22,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"
     healthcheck:

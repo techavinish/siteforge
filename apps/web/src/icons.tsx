@@ -53,10 +53,10 @@ export const IconPencil = () => (
   </svg>
 );
 
-export const IconSend = () => (
-  <svg {...base} width={15} height={15}>
-    <line x1="22" y1="2" x2="11" y2="13" />
-    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+export const IconArrowUp = () => (
+  <svg {...base} width={17} height={17} strokeWidth={2.2}>
+    <line x1="12" y1="19" x2="12" y2="5" />
+    <polyline points="5 12 12 5 19 12" />
   </svg>
 );
 
