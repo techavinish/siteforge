@@ -8,6 +8,10 @@ locals {
     "iam.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "billingbudgets.googleapis.com",
+    "firebase.googleapis.com",
+    "firebasehosting.googleapis.com",
+    "identitytoolkit.googleapis.com",
+    "serviceusage.googleapis.com",
   ]
 }
 

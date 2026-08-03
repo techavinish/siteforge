@@ -1,0 +1,13 @@
+{
+  "hosting": {
+    "site": "siteforge-dev-3977",
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*"],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
