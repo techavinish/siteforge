@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
+import {
+  Cake, Camera, Coffee, Dumbbell, Flower, Flower2, GraduationCap,
+  PawPrint, Scissors, Sofa, UtensilsCrossed, Wrench,
+} from "lucide-react";
 import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
 import { authFetch, idToken, setAuthUser } from "./api";
@@ -30,18 +34,18 @@ function hashThread(): string | null {
 
 
 const STARTER_POOL = [
-  { emoji: "🍰", label: "Bakery with custom cakes", prompt: "I run a bakery that specialises in custom wedding cakes and want a website for it." },
-  { emoji: "☕", label: "Minimal coffee bar", prompt: "I'm opening a minimalist specialty coffee bar for young professionals and need a website." },
-  { emoji: "🧘", label: "Yoga studio", prompt: "I own a yoga studio offering beginner-friendly classes and want a calm, welcoming website." },
-  { emoji: "🛠️", label: "Local repair service", prompt: "I run a home appliance repair service and want a website where customers can request a visit." },
-  { emoji: "💪", label: "Neighbourhood gym", prompt: "I run a gym with personal training and group classes and want an energetic website." },
-  { emoji: "📸", label: "Wedding photographer", prompt: "I'm a wedding photographer and need a portfolio website that gets me bookings." },
-  { emoji: "🌸", label: "Flower boutique", prompt: "I own a flower boutique doing bouquets and event decoration, and want an elegant website." },
-  { emoji: "🐾", label: "Pet grooming salon", prompt: "I run a pet grooming salon and want a playful website where owners can book appointments." },
-  { emoji: "📚", label: "Tutoring academy", prompt: "I run a tutoring academy for school students and want a trustworthy website for parents." },
-  { emoji: "🍜", label: "Street-food restaurant", prompt: "I'm opening a street-food restaurant and want a bold website with our menu and story." },
-  { emoji: "💇", label: "Hair salon", prompt: "I own a modern hair salon and want a stylish website with services and prices." },
-  { emoji: "🏡", label: "Interior designer", prompt: "I'm an interior designer and need a minimal portfolio website that attracts premium clients." },
+  { icon: Cake, label: "Bakery with custom cakes", prompt: "I run a bakery that specialises in custom wedding cakes and want a website for it." },
+  { icon: Coffee, label: "Minimal coffee bar", prompt: "I'm opening a minimalist specialty coffee bar for young professionals and need a website." },
+  { icon: Flower2, label: "Yoga studio", prompt: "I own a yoga studio offering beginner-friendly classes and want a calm, welcoming website." },
+  { icon: Wrench, label: "Local repair service", prompt: "I run a home appliance repair service and want a website where customers can request a visit." },
+  { icon: Dumbbell, label: "Neighbourhood gym", prompt: "I run a gym with personal training and group classes and want an energetic website." },
+  { icon: Camera, label: "Wedding photographer", prompt: "I'm a wedding photographer and need a portfolio website that gets me bookings." },
+  { icon: Flower, label: "Flower boutique", prompt: "I own a flower boutique doing bouquets and event decoration, and want an elegant website." },
+  { icon: PawPrint, label: "Pet grooming salon", prompt: "I run a pet grooming salon and want a playful website where owners can book appointments." },
+  { icon: GraduationCap, label: "Tutoring academy", prompt: "I run a tutoring academy for school students and want a trustworthy website for parents." },
+  { icon: UtensilsCrossed, label: "Street-food restaurant", prompt: "I'm opening a street-food restaurant and want a bold website with our menu and story." },
+  { icon: Scissors, label: "Hair salon", prompt: "I own a modern hair salon and want a stylish website with services and prices." },
+  { icon: Sofa, label: "Interior designer", prompt: "I'm an interior designer and need a minimal portfolio website that attracts premium clients." },
 ];
 
 function pickStarters() {
@@ -527,7 +531,7 @@ export default function App() {
               <div className="chips">
                 {starters.map((s) => (
                   <button key={s.label} className="chip" onClick={() => send(s.prompt)}>
-                    <span className="chip-emoji">{s.emoji}</span>
+                    <span className="chip-ico"><s.icon size={14} strokeWidth={1.9} /></span>
                     {s.label}
                   </button>
                 ))}

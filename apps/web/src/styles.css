@@ -266,7 +266,7 @@ button.primary:disabled { opacity: 0.45; }
   transform: translateY(-1px); box-shadow: 0 3px 12px rgba(232, 93, 31, 0.18);
 }
 .chip:active { transform: none; box-shadow: none; }
-.chip-emoji { font-size: 0.95rem; }
+.chip-ico { display: inline-flex; color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .chip { animation: none; } }
 .working-row {
   display: flex; align-items: center; gap: 12px;
