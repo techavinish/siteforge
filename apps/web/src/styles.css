@@ -368,14 +368,11 @@ button.primary:disabled { opacity: 0.45; }
   transition: transform 0.12s var(--ease);
 }
 .jump-down:hover { transform: translateY(2px); }
-.chev-css {
-  display: block; width: 12px; height: 12px;
-  border-right: 3px solid var(--accent);
-  border-bottom: 3px solid var(--accent);
-  border-radius: 1px;
-  transform: rotate(45deg) translate(-2px, -2px);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+.jump-down {
+  color: var(--accent); /* lucide strokes use currentColor — a keyword, not var() in an attribute, so this is safe */
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
+.jump-down svg { display: block; }
 .chat.positioning { visibility: hidden; }
 .load-more {
   margin: 6px 4px; padding: 8px; font: inherit; font-size: 0.75rem;

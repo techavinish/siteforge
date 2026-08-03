@@ -4,7 +4,7 @@ import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
 import { authFetch, idToken, setAuthUser } from "./api";
 import ConfirmModal from "./ConfirmModal";
-import { IconArrowUp, IconGlobe, IconStop } from "./icons";
+import { IconArrowUp, IconChevronDown, IconGlobe, IconStop } from "./icons";
 import Preview, { type Draft } from "./Preview";
 import Sidebar, { type ChatMeta } from "./Sidebar";
 import Thinking, { type ThinkBlock } from "./Thinking";
@@ -576,9 +576,7 @@ export default function App() {
 
         {!atBottom && msgs.length > 0 && (
           <button className="jump-down" onClick={scrollToBottom} aria-label="Jump to latest">
-            {/* pure-CSS chevron: two borders rotated 45° — cannot fail to
-                render regardless of fonts, svg handling, or cache state */}
-            <span className="chev-css" />
+            <IconChevronDown />
           </button>
         )}
 
