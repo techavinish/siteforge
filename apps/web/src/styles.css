@@ -238,11 +238,19 @@ button.primary:disabled { opacity: 0.45; }
 .hero-empty p { line-height: 1.7; }
 @media (prefers-reduced-motion: reduce) { .type-caret { animation: none; } }
 
-/* current chat name when the sidebar is tucked away (claude-style) */
+/* current chat name when the sidebar is tucked away — floats over the
+   chat with a blur, takes no layout space (claude-style) */
 .chat-top {
-  padding: 14px 44px 10px 8px; font-size: 0.85rem; font-weight: 600;
+  position: absolute; top: 0; left: 0; right: 0; z-index: 4;
+  padding: 12px 16px 10px; text-align: left;
+  font-size: 0.85rem; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  opacity: 0.75; animation: fade 0.2s ease both;
+  color: var(--ink); opacity: 0.9;
+  background: linear-gradient(to bottom, var(--paper) 20%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none;
+  animation: fade 0.2s ease both;
 }
 .chips {
   margin-top: 26px;

@@ -7,3 +7,4 @@ psycopg[binary]==3.2.*
 markdown==3.*
 google-auth==2.*
 requests==2.*
+temporalio==1.*

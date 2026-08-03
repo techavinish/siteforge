@@ -399,6 +399,60 @@ def draft(thread_id: str, uid: str = Depends(current_uid)):
     }
 
 
+TEMPORAL_ADDRESS = __import__("os").environ.get("TEMPORAL_ADDRESS", "localhost:7233")
+
+
+async def _temporal():
+    from temporalio.client import Client
+
+    return await Client.connect(TEMPORAL_ADDRESS)
+
+
+@app.post("/agent/workflows/generate/{thread_id}")
+async def wf_generate(thread_id: str, regenerate: bool = True, uid: str = Depends(current_uid)):
+    """Start the durable generation workflow. One per thread — starting
+    again while one runs returns the running one."""
+    own_thread(thread_id, uid)
+    from temporalio.exceptions import WorkflowAlreadyStartedError
+
+    client = await _temporal()
+    wf_id = f"gen-{thread_id}"
+    try:
+        await client.start_workflow(
+            "GenerateSiteWorkflow",
+            args=[thread_id, regenerate],
+            id=wf_id,
+            task_queue="siteforge",
+        )
+    except WorkflowAlreadyStartedError:
+        pass
+    return {"workflow_id": wf_id}
+
+
+@app.post("/agent/workflows/{thread_id}/approve")
+async def wf_approve(thread_id: str, uid: str = Depends(current_uid)):
+    own_thread(thread_id, uid)
+    client = await _temporal()
+    await client.get_workflow_handle(f"gen-{thread_id}").signal("approve")
+    return {"ok": True}
+
+
+@app.get("/agent/workflows/{thread_id}/status")
+async def wf_status(thread_id: str, uid: str = Depends(current_uid)):
+    own_thread(thread_id, uid)
+    client = await _temporal()
+    handle = client.get_workflow_handle(f"gen-{thread_id}")
+    desc = await handle.describe()
+    out = {"run_status": desc.status.name if desc.status else "UNKNOWN"}
+    try:
+        out["stage"] = await handle.query("status")
+    except Exception:
+        out["stage"] = None
+    if desc.status and desc.status.name == "COMPLETED":
+        out["result"] = await handle.result()
+    return out
+
+
 @app.post("/agent/publish/{thread_id}")
 def publish(thread_id: str, uid: str = Depends(current_uid)):
     own_thread(thread_id, uid)
