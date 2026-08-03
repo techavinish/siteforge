@@ -20,39 +20,56 @@ REQUIRED_BRIEF_FIELDS = [
     "tone",
 ]
 
-INTERVIEW_SYSTEM = f"""You are SiteForge, a friendly copilot that builds business websites.
-You are interviewing the owner. You need these fields: {", ".join(REQUIRED_BRIEF_FIELDS)}.
+# The interview is SPLIT into two nodes so the user-visible half can stream:
+#   understand — silent JSON extraction (the "thinking" step; unstreamable)
+#   respond    — pure prose written for the owner (streamed token-by-token)
+# Structured output and streamable output never mix well in one call.
 
-Given the conversation so far and the current brief, respond with ONLY a JSON object:
-{{"brief": {{...all fields learned so far...}},
- "complete": true/false,
- "reply": "your next message to the owner"}}
+UNDERSTAND_SYSTEM = f"""You extract structured facts from a conversation between
+a website copilot and a business owner. Fields: {", ".join(REQUIRED_BRIEF_FIELDS)}.
 
-Rules: extract everything the owner already said into the brief. Ask for at
-most TWO missing fields per turn, conversationally. Set complete=true only
-when every field has a real value. When complete, make reply a short summary
-of what you'll build, ending with: "Building your draft now…"."""
+Respond with ONLY JSON: {{"brief": {{...every field learned so far...}},
+"complete": true/false}}. complete=true only when every field has a real value."""
 
 
-def interview(state: AgentState) -> dict:
-    model = chat_model(INTERVIEW_MODEL, temperature=0.4)
+def understand(state: AgentState) -> dict:
+    model = chat_model(INTERVIEW_MODEL, temperature=0.1)
     result = model.invoke(
-        [SystemMessage(INTERVIEW_SYSTEM)]
+        [SystemMessage(UNDERSTAND_SYSTEM)]
         + state["messages"]
-        + [SystemMessage(f"Current brief: {state.get('brief', {})}")]
+        + [SystemMessage(f"Previously known brief: {state.get('brief', {})}")]
     )
     try:
         data = extract_json(result.content)
     except ValueError:
-        # model rambled instead of returning JSON — treat it as a chat reply
-        data = {"brief": state.get("brief", {}), "complete": False, "reply": result.content}
-
+        data = {"brief": state.get("brief", {}), "complete": False}
     return {
-        "messages": [AIMessage(data.get("reply", ""))],
         "brief": data.get("brief", state.get("brief", {})),
         "brief_complete": bool(data.get("complete")),
-        "phase": "interviewing",
+        "phase": "thinking",
     }
+
+
+RESPOND_SYSTEM = """You are SiteForge, a friendly copilot that builds business
+websites. Write your next message to the owner as PLAIN PROSE (no JSON, no markdown
+headers). If the brief is incomplete: warmly ask for at most TWO of the missing
+fields. If complete: give a one-sentence summary of the site you'll build and end
+with exactly: "Building your draft now…"."""
+
+
+def respond(state: AgentState) -> dict:
+    missing = [f for f in REQUIRED_BRIEF_FIELDS if not state.get("brief", {}).get(f)]
+    model = chat_model(INTERVIEW_MODEL, temperature=0.6)
+    result = model.invoke(
+        [SystemMessage(RESPOND_SYSTEM)]
+        + state["messages"]
+        + [SystemMessage(
+            f"Brief so far: {state['brief']}\n"
+            f"Missing fields: {missing or 'none'}\n"
+            f"Brief complete: {state['brief_complete']}"
+        )]
+    )
+    return {"messages": [AIMessage(result.content)], "phase": "interviewing"}
 
 
 PLAN_SYSTEM = """You are a web strategist. Given a business brief, design a small

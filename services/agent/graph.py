@@ -21,11 +21,11 @@ Two ideas to notice:
 
 from langgraph.graph import END, START, StateGraph
 
-from nodes import critique, deliver, interview, plan, write
+from nodes import critique, deliver, plan, respond, understand, write
 from state import AgentState
 
 
-def after_interview(state: AgentState) -> str:
+def after_respond(state: AgentState) -> str:
     return "plan" if state["brief_complete"] else END
 
 
@@ -38,7 +38,8 @@ def after_critique(state: AgentState) -> str:
 def build_graph(checkpointer=None):
     g = StateGraph(AgentState)
 
-    g.add_node("interview", interview)
+    g.add_node("understand", understand)
+    g.add_node("respond", respond)
     g.add_node("plan", plan)
     g.add_node("write", write)
     # node named "review" (not "critique") — LangGraph forbids a node name
@@ -46,8 +47,9 @@ def build_graph(checkpointer=None):
     g.add_node("review", critique)
     g.add_node("deliver", deliver)
 
-    g.add_edge(START, "interview")
-    g.add_conditional_edges("interview", after_interview, {"plan": "plan", END: END})
+    g.add_edge(START, "understand")
+    g.add_edge("understand", "respond")
+    g.add_conditional_edges("respond", after_respond, {"plan": "plan", END: END})
     g.add_edge("plan", "write")
     g.add_edge("write", "review")
     g.add_conditional_edges("review", after_critique, {"write": "write", "deliver": "deliver"})

@@ -3,16 +3,22 @@ import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebas
 import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
 import ConfirmModal from "./ConfirmModal";
+import { IconStop } from "./icons";
 import Preview, { type Draft } from "./Preview";
 import Sidebar, { type ChatMeta } from "./Sidebar";
 
 type Msg = { role: "user" | "agent"; text: string };
 
 const PHASE_LABEL: Record<string, string> = {
+  thinking: "Thinking…",
   planning: "Planning your site…",
   writing: "Writing pages…",
   critiquing: "Reviewing quality…",
 };
+
+function hashThread(): string | null {
+  return location.hash.match(/^#\/c\/(.+)$/)?.[1] ?? null;
+}
 
 const STARTER_POOL = [
   { emoji: "🍰", label: "Bakery with custom cakes", prompt: "I run a bakery that specialises in custom wedding cakes and want a website for it." },
@@ -46,6 +52,8 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sf-side") === "1");
   const [starters, setStarters] = useState(pickStarters);
   const [deleteTarget, setDeleteTarget] = useState<ChatMeta | null>(null);
+  const [streamText, setStreamText] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   function toggleSidebar() {
@@ -85,11 +93,15 @@ export default function App() {
   const openThread = useCallback(async (id: string) => {
     setThread(id);
     setPhase(null);
-    const [history, d] = await Promise.all([
+    setStreamText("");
+    // the thread id lives in the URL: refresh restores it, back/forward
+    // moves between conversations — single-route SPA, hash as state
+    if (hashThread() !== id) history.pushState(null, "", `#/c/${id}`);
+    const [history_, d] = await Promise.all([
       fetch(`/agent/chats/${id}/messages`).then((r) => r.json()),
       fetch(`/agent/draft/${id}`).then((r) => r.json()),
     ]);
-    setMsgs(history);
+    setMsgs(history_);
     setDraft(d?.pages && Object.keys(d.pages).length ? d : null);
   }, []);
 
@@ -99,14 +111,31 @@ export default function App() {
       setLoading(false);
       if (u) {
         const list = await loadChats(u);
-        if (list.length) openThread(list[0].thread_id);
+        const fromUrl = hashThread();
+        if (fromUrl && list.some((c) => c.thread_id === fromUrl)) openThread(fromUrl);
+        else if (list.length) openThread(list[0].thread_id);
       }
     });
   }, [loadChats, openThread]);
 
+  // browser back/forward between chats
+  useEffect(() => {
+    const onPop = () => {
+      const id = hashThread();
+      if (id) openThread(id);
+      else {
+        setThread(null);
+        setMsgs([]);
+        setDraft(null);
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [openThread]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, phase]);
+  }, [msgs, phase, streamText]);
 
   function newChat() {
     // no API call — the thread is created on the FIRST message, so an
@@ -116,6 +145,7 @@ export default function App() {
     setDraft(null);
     setPhase(null);
     setStarters(pickStarters()); // fresh suggestions every time
+    history.pushState(null, "", "#/");
   }
 
   async function send(textOverride?: string) {
@@ -130,6 +160,8 @@ export default function App() {
       }).then((r) => r.json());
       tid = created.thread_id;
       setThread(tid);
+      history.pushState(null, "", `#/c/${tid}`);
+      loadChats(user); // the row appears in the sidebar NOW, titled later
     }
 
     const text = raw.trim();
@@ -137,12 +169,19 @@ export default function App() {
     setMsgs((m) => [...m, { role: "user", text }]);
     setBusy(true);
 
+    // acc mirrors streamText — a plain variable survives the read loop;
+    // state exists only to render
+    let acc = "";
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const token = await user.getIdToken();
       const res = await fetch("/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ thread_id: tid, message: text }),
+        signal: controller.signal,
       });
       if (!res.ok || !res.body) throw new Error(`agent said ${res.status}`);
 
@@ -159,8 +198,18 @@ export default function App() {
         for (const evt of events) {
           const type = evt.match(/^event: (.+)$/m)?.[1];
           const data = JSON.parse(evt.match(/^data: (.+)$/m)?.[1] ?? "{}");
-          if (type === "node") {
+          if (type === "token") {
+            acc += data.text;
+            setStreamText(acc);
+          } else if (type === "node") {
             if (data.phase) setPhase(data.phase);
+            if (data.node === "respond" && acc) {
+              // stream finished — promote the live text into a message
+              const final = acc;
+              acc = "";
+              setStreamText("");
+              setMsgs((m) => [...m, { role: "agent", text: final }]);
+            }
             if (data.reply) setMsgs((m) => [...m, { role: "agent", text: data.reply }]);
           } else if (type === "done" && data.phase === "done") {
             finished = true;
@@ -173,14 +222,25 @@ export default function App() {
       }
       await loadChats(user);
     } catch (e) {
-      setMsgs((m) => [
-        ...m,
-        { role: "agent", text: `⚠️ ${e instanceof Error ? e.message : e} — is the agent running on :8001?` },
-      ]);
+      if (e instanceof DOMException && e.name === "AbortError") {
+        // user pressed stop — keep whatever already streamed
+        if (acc) setMsgs((m) => [...m, { role: "agent", text: acc + " ⏹" }]);
+      } else {
+        setMsgs((m) => [
+          ...m,
+          { role: "agent", text: `⚠️ ${e instanceof Error ? e.message : e} — is the agent running on :8001?` },
+        ]);
+      }
     } finally {
+      abortRef.current = null;
+      setStreamText("");
       setBusy(false);
       setPhase(null);
     }
+  }
+
+  function stopStream() {
+    abortRef.current?.abort();
   }
 
   if (loading) {
@@ -257,7 +317,13 @@ export default function App() {
               />
             ),
           )}
-          {busy && (
+          {streamText && (
+            <div
+              className="agent-md streaming"
+              dangerouslySetInnerHTML={{ __html: marked.parse(streamText, { async: false }) as string }}
+            />
+          )}
+          {busy && !streamText && (
             <div className="working-row">
               <span className="dots"><i /><i /><i /></span>
               {phase && PHASE_LABEL[phase] && <span className="phase-tag">{PHASE_LABEL[phase]}</span>}
@@ -274,9 +340,15 @@ export default function App() {
             placeholder={busy ? "Working…" : "Describe your business…"}
             disabled={busy}
           />
-          <button className="primary" onClick={() => send()} disabled={busy || !input.trim()}>
-            Send
-          </button>
+          {busy ? (
+            <button className="stop" onClick={stopStream} title="Stop generating">
+              <IconStop />
+            </button>
+          ) : (
+            <button className="primary" onClick={() => send()} disabled={!input.trim()}>
+              Send
+            </button>
+          )}
         </footer>
       </main>
 

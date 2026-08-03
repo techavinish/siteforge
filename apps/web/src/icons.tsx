@@ -59,3 +59,9 @@ export const IconSend = () => (
     <polygon points="22 2 15 22 11 13 2 9 22 2" />
   </svg>
 );
+
+export const IconStop = () => (
+  <svg {...base} width={14} height={14} fill="currentColor" strokeWidth={0}>
+    <rect x="6" y="6" width="12" height="12" rx="2" />
+  </svg>
+);

@@ -171,14 +171,29 @@ def chat(body: ChatIn):
         conn.commit()
 
     def events():
-        for update in graph.stream(
-            {"messages": [("user", body.message)]}, config, stream_mode="updates"
+        # two stream modes multiplexed: "messages" gives token-by-token LLM
+        # output (with which node produced it), "updates" gives node results
+        for mode, chunk in graph.stream(
+            {"messages": [("user", body.message)]},
+            config,
+            stream_mode=["updates", "messages"],
         ):
-            for node_name, node_update in update.items():
+            if mode == "messages":
+                msg_chunk, meta = chunk
+                # only the respond node speaks prose to the user — stream it live;
+                # other nodes emit JSON/copy that's delivered as results instead
+                if meta.get("langgraph_node") == "respond" and msg_chunk.content:
+                    yield f"event: token\ndata: {json.dumps({'text': msg_chunk.content})}\n\n"
+                continue
+
+            for node_name, node_update in chunk.items():
                 payload = {"node": node_name, "phase": node_update.get("phase")}
-                # surface user-facing text as it's produced
-                for m in node_update.get("messages", []):
-                    payload["reply"] = m.content
+                # respond's full text was already streamed as tokens — the node
+                # event just marks it finished. deliver's message is code-built
+                # (no tokens exist), so it ships whole.
+                if node_name != "respond":
+                    for m in node_update.get("messages", []):
+                        payload["reply"] = m.content
                 yield f"event: node\ndata: {json.dumps(payload)}\n\n"
 
         final = graph.get_state(config).values
