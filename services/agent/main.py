@@ -72,6 +72,48 @@ def list_chats(uid: str):
     return [{"thread_id": r[0], "title": r[1] or "New chat", "updated_at": r[2].isoformat()} for r in rows]
 
 
+@app.delete("/agent/chats/{thread_id}")
+def delete_chat(thread_id: str):
+    """Remove the chat and its checkpointed state."""
+    conn = psycopg.connect(DATABASE_URL, autocommit=True)
+    with conn:
+        conn.execute("DELETE FROM chats WHERE thread_id=%s", (thread_id,))
+        # langgraph's saver tables — autocommit so a missing table can't
+        # poison the transaction across saver versions
+        for table in ("checkpoint_writes", "checkpoint_blobs", "checkpoints"):
+            try:
+                conn.execute(f"DELETE FROM {table} WHERE thread_id=%s", (thread_id,))
+            except psycopg.Error:
+                pass
+    return {"ok": True}
+
+
+def _ensure_title(thread_id: str, first_message: str) -> None:
+    """Name the chat like ChatGPT does — a short LLM-written title.
+
+    Runs AFTER the response streams, so it never delays the reply.
+    Falls back to truncation if the model call fails.
+    """
+    with psycopg.connect(DATABASE_URL) as conn:
+        row = conn.execute("SELECT title FROM chats WHERE thread_id=%s", (thread_id,)).fetchone()
+    if not row or row[0]:
+        return
+    try:
+        from config import INTERVIEW_MODEL
+        from llm import chat_model
+
+        r = chat_model(INTERVIEW_MODEL, temperature=0.2).invoke([
+            ("system", "Write a 2-5 word title for a conversation that starts with the user message. Reply with ONLY the title. No quotes, no punctuation at the end."),
+            ("user", first_message),
+        ])
+        title = r.content.strip().strip('"').strip() or first_message
+    except Exception:
+        title = first_message
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute("UPDATE chats SET title=%s WHERE thread_id=%s", (title[:60], thread_id))
+        conn.commit()
+
+
 @app.get("/agent/chats/{thread_id}/messages")
 def chat_messages(thread_id: str):
     state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
@@ -105,11 +147,11 @@ def draft(thread_id: str):
 def chat(body: ChatIn):
     config = {"configurable": {"thread_id": body.thread_id}}
 
-    # first message becomes the chat title; every turn bumps recency
+    # bump recency; the title is LLM-generated after the reply streams
     with psycopg.connect(DATABASE_URL) as conn:
         conn.execute(
-            "UPDATE chats SET title = COALESCE(title, %s), updated_at = now() WHERE thread_id = %s",
-            (body.message[:60], body.thread_id),
+            "UPDATE chats SET updated_at = now() WHERE thread_id = %s",
+            (body.thread_id,),
         )
         conn.commit()
 
@@ -133,5 +175,7 @@ def chat(body: ChatIn):
             "score": final.get("critique", {}).get("score"),
         }
         yield f"event: done\ndata: {json.dumps(snapshot)}\n\n"
+
+        _ensure_title(body.thread_id, body.message)
 
     return StreamingResponse(events(), media_type="text/event-stream")

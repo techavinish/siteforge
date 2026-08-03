@@ -23,7 +23,26 @@ export default function App() {
   const [phase, setPhase] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sf-side") === "1");
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  function toggleSidebar() {
+    setCollapsed((c) => {
+      localStorage.setItem("sf-side", c ? "0" : "1");
+      return !c;
+    });
+  }
+
+  async function deleteChat(id: string) {
+    if (!window.confirm("Delete this chat and its draft?")) return;
+    await fetch(`/agent/chats/${id}`, { method: "DELETE" });
+    if (user) await loadChats(user);
+    if (thread === id) {
+      setThread(null);
+      setMsgs([]);
+      setDraft(null);
+    }
+  }
 
   const loadChats = useCallback(async (u: User) => {
     const list: ChatMeta[] = await fetch(`/agent/chats?uid=${u.uid}`).then((r) => r.json());
@@ -155,8 +174,11 @@ export default function App() {
         chats={chats}
         active={thread}
         user={user}
+        collapsed={collapsed}
+        onToggle={toggleSidebar}
         onSelect={openThread}
         onNew={newChat}
+        onDelete={deleteChat}
         onSignOut={() => signOut(auth)}
       />
 
