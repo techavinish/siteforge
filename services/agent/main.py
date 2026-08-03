@@ -72,6 +72,21 @@ def list_chats(uid: str):
     return [{"thread_id": r[0], "title": r[1] or "New chat", "updated_at": r[2].isoformat()} for r in rows]
 
 
+class RenameIn(BaseModel):
+    title: str
+
+
+@app.patch("/agent/chats/{thread_id}")
+def rename_chat(thread_id: str, body: RenameIn):
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute(
+            "UPDATE chats SET title=%s WHERE thread_id=%s",
+            (body.title.strip()[:60] or "Untitled", thread_id),
+        )
+        conn.commit()
+    return {"ok": True}
+
+
 @app.delete("/agent/chats/{thread_id}")
 def delete_chat(thread_id: str):
     """Remove the chat and its checkpointed state."""

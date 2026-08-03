@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { User } from "firebase/auth";
-import { IconLogout, IconPanel, IconPlus, IconSearch, IconX } from "./icons";
+import { IconLogout, IconPanel, IconPencil, IconPlus, IconSearch, IconX } from "./icons";
 
 export type ChatMeta = { thread_id: string; title: string; updated_at: string };
 
@@ -13,6 +13,7 @@ export default function Sidebar({
   onSelect,
   onNew,
   onDelete,
+  onRename,
   onSignOut,
 }: {
   chats: ChatMeta[];
@@ -22,14 +23,28 @@ export default function Sidebar({
   onToggle: () => void;
   onSelect: (id: string) => void;
   onNew: () => void;
-  onDelete: (id: string) => void;
+  onDelete: (chat: ChatMeta) => void;
+  onRename: (id: string, title: string) => Promise<void>;
   onSignOut: () => void;
 }) {
   const [q, setQ] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
   const filtered = useMemo(
     () => chats.filter((c) => c.title.toLowerCase().includes(q.trim().toLowerCase())),
     [chats, q],
   );
+
+  function startEdit(c: ChatMeta) {
+    setEditing(c.thread_id);
+    setEditValue(c.title);
+  }
+
+  async function commitEdit() {
+    if (editing && editValue.trim()) await onRename(editing, editValue.trim());
+    setEditing(null);
+  }
 
   if (collapsed) {
     return (
@@ -66,19 +81,50 @@ export default function Sidebar({
       <div className="chat-list">
         {filtered.map((c) => (
           <div key={c.thread_id} className={c.thread_id === active ? "chat-row active" : "chat-row"}>
-            <button className="chat-item" onClick={() => onSelect(c.thread_id)} title={c.title}>
-              {c.title}
-            </button>
-            <button
-              className="icon-btn chat-del"
-              title="Delete chat"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(c.thread_id);
-              }}
-            >
-              <IconX />
-            </button>
+            {editing === c.thread_id ? (
+              <input
+                className="chat-rename"
+                value={editValue}
+                autoFocus
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitEdit();
+                  if (e.key === "Escape") setEditing(null);
+                }}
+              />
+            ) : (
+              <>
+                <button
+                  className="chat-item"
+                  onClick={() => onSelect(c.thread_id)}
+                  onDoubleClick={() => startEdit(c)}
+                  title={c.title}
+                >
+                  {c.title}
+                </button>
+                <button
+                  className="icon-btn row-action"
+                  title="Rename"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startEdit(c);
+                  }}
+                >
+                  <IconPencil />
+                </button>
+                <button
+                  className="icon-btn row-action del"
+                  title="Delete chat"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(c);
+                  }}
+                >
+                  <IconX />
+                </button>
+              </>
+            )}
           </div>
         ))}
         {filtered.length === 0 && (

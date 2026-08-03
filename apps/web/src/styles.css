@@ -132,12 +132,45 @@ button.primary:disabled { opacity: 0.45; }
   color: var(--ink); opacity: 0.85;
 }
 .chat-row.active .chat-item { opacity: 1; font-weight: 600; }
-.chat-del {
-  width: 26px; height: 26px; margin-right: 5px; flex: none;
-  opacity: 0;
+.row-action {
+  width: 26px; height: 26px; flex: none; opacity: 0;
 }
-.chat-row:hover .chat-del { opacity: 0.55; }
-.chat-del:hover { opacity: 1 !important; color: #e0492e; background: rgba(224, 73, 46, 0.12); }
+.row-action:last-child { margin-right: 5px; }
+.chat-row:hover .row-action { opacity: 0.55; }
+.row-action:hover { opacity: 1 !important; }
+.row-action.del:hover { color: #e0492e; background: rgba(224, 73, 46, 0.12); }
+.chat-rename {
+  flex: 1; font: inherit; font-size: 0.82rem; min-width: 0;
+  margin: 3px 5px; padding: 5px 8px; border-radius: 6px;
+  border: 1px solid var(--accent); background: var(--paper); color: var(--ink);
+}
+.chat-rename:focus { outline: none; }
+
+/* confirm modal */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(3px);
+  display: grid; place-items: center;
+  animation: fade 0.15s ease both;
+}
+.modal {
+  width: min(400px, calc(100vw - 48px));
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: 14px; padding: 22px 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  animation: pop 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.modal h3 { margin: 0 0 8px; font-size: 1.05rem; }
+.modal p { margin: 0 0 20px; font-size: 0.85rem; line-height: 1.5; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.modal-actions button { font-size: 0.85rem; }
+.modal-actions .danger {
+  background: #e0492e; border-color: transparent; color: #fff; font-weight: 600;
+}
+.modal-actions .danger:hover { filter: brightness(1.12); }
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.94) translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .modal-overlay, .modal { animation: none; } }
 .side-empty { padding: 10px; font-size: 0.85rem; }
 .side-foot {
   display: flex; align-items: center; gap: 8px;

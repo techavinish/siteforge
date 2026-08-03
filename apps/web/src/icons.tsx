@@ -47,6 +47,12 @@ export const IconLogout = () => (
   </svg>
 );
 
+export const IconPencil = () => (
+  <svg {...base} width={13} height={13}>
+    <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+  </svg>
+);
+
 export const IconSend = () => (
   <svg {...base} width={15} height={15}>
     <line x1="22" y1="2" x2="11" y2="13" />

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
+import ConfirmModal from "./ConfirmModal";
 import Preview, { type Draft } from "./Preview";
 import Sidebar, { type ChatMeta } from "./Sidebar";
 
@@ -13,28 +14,24 @@ const PHASE_LABEL: Record<string, string> = {
   critiquing: "Reviewing quality…",
 };
 
-const STARTERS = [
-  {
-    emoji: "🍰",
-    label: "Bakery with custom cakes",
-    prompt: "I run a bakery that specialises in custom wedding cakes and want a website for it.",
-  },
-  {
-    emoji: "☕",
-    label: "Minimal coffee bar",
-    prompt: "I'm opening a minimalist specialty coffee bar for young professionals and need a website.",
-  },
-  {
-    emoji: "🧘",
-    label: "Yoga studio",
-    prompt: "I own a yoga studio offering beginner-friendly classes and want a calm, welcoming website.",
-  },
-  {
-    emoji: "🛠️",
-    label: "Local repair service",
-    prompt: "I run a home appliance repair service and want a website where customers can request a visit.",
-  },
+const STARTER_POOL = [
+  { emoji: "🍰", label: "Bakery with custom cakes", prompt: "I run a bakery that specialises in custom wedding cakes and want a website for it." },
+  { emoji: "☕", label: "Minimal coffee bar", prompt: "I'm opening a minimalist specialty coffee bar for young professionals and need a website." },
+  { emoji: "🧘", label: "Yoga studio", prompt: "I own a yoga studio offering beginner-friendly classes and want a calm, welcoming website." },
+  { emoji: "🛠️", label: "Local repair service", prompt: "I run a home appliance repair service and want a website where customers can request a visit." },
+  { emoji: "💪", label: "Neighbourhood gym", prompt: "I run a gym with personal training and group classes and want an energetic website." },
+  { emoji: "📸", label: "Wedding photographer", prompt: "I'm a wedding photographer and need a portfolio website that gets me bookings." },
+  { emoji: "🌸", label: "Flower boutique", prompt: "I own a flower boutique doing bouquets and event decoration, and want an elegant website." },
+  { emoji: "🐾", label: "Pet grooming salon", prompt: "I run a pet grooming salon and want a playful website where owners can book appointments." },
+  { emoji: "📚", label: "Tutoring academy", prompt: "I run a tutoring academy for school students and want a trustworthy website for parents." },
+  { emoji: "🍜", label: "Street-food restaurant", prompt: "I'm opening a street-food restaurant and want a bold website with our menu and story." },
+  { emoji: "💇", label: "Hair salon", prompt: "I own a modern hair salon and want a stylish website with services and prices." },
+  { emoji: "🏡", label: "Interior designer", prompt: "I'm an interior designer and need a minimal portfolio website that attracts premium clients." },
 ];
+
+function pickStarters() {
+  return [...STARTER_POOL].sort(() => Math.random() - 0.5).slice(0, 4);
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -47,6 +44,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sf-side") === "1");
+  const [starters, setStarters] = useState(pickStarters);
+  const [deleteTarget, setDeleteTarget] = useState<ChatMeta | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   function toggleSidebar() {
@@ -56,15 +55,25 @@ export default function App() {
     });
   }
 
-  async function deleteChat(id: string) {
-    if (!window.confirm("Delete this chat and its draft?")) return;
-    await fetch(`/agent/chats/${id}`, { method: "DELETE" });
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    await fetch(`/agent/chats/${deleteTarget.thread_id}`, { method: "DELETE" });
     if (user) await loadChats(user);
-    if (thread === id) {
+    if (thread === deleteTarget.thread_id) {
       setThread(null);
       setMsgs([]);
       setDraft(null);
     }
+    setDeleteTarget(null);
+  }
+
+  async function renameChat(id: string, title: string) {
+    await fetch(`/agent/chats/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    if (user) await loadChats(user);
   }
 
   const loadChats = useCallback(async (u: User) => {
@@ -106,6 +115,7 @@ export default function App() {
     setMsgs([]);
     setDraft(null);
     setPhase(null);
+    setStarters(pickStarters()); // fresh suggestions every time
   }
 
   async function send(textOverride?: string) {
@@ -203,9 +213,20 @@ export default function App() {
         onToggle={toggleSidebar}
         onSelect={openThread}
         onNew={newChat}
-        onDelete={deleteChat}
+        onDelete={setDeleteTarget}
+        onRename={renameChat}
         onSignOut={() => signOut(auth)}
       />
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete chat?"
+          detail={`“${deleteTarget.title}” and its website draft will be permanently deleted.`}
+          confirmLabel="Delete"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
 
       <main className="chat-shell">
         <section className="chat">
@@ -216,7 +237,7 @@ export default function App() {
                 Describe your business — I'll interview you, then design and write your website.
               </p>
               <div className="chips">
-                {STARTERS.map((s) => (
+                {starters.map((s) => (
                   <button key={s.label} className="chip" onClick={() => send(s.prompt)}>
                     <span className="chip-emoji">{s.emoji}</span>
                     {s.label}
