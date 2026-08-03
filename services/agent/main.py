@@ -50,6 +50,38 @@ class ChatIn(BaseModel):
     message: str
 
 
+NODE_LABELS = {
+    "understand": "Understanding your business",
+    "plan": "Designing the site structure",
+    "write": "Writing page copy",
+    "review": "Reviewing quality",
+}
+
+# canned quick-reply options for interview fields that have generic answers
+FIELD_SUGGESTIONS = {
+    "target_customers": ["Local families", "Young professionals", "Tourists and visitors"],
+    "tone": ["Warm and friendly", "Modern and minimal", "Bold and energetic", "Premium and elegant"],
+}
+
+DONE_SUGGESTIONS = [
+    "Make the tone more premium",
+    "Change the color theme",
+    "Add a pricing page",
+    "Shorten the homepage copy",
+]
+
+
+def _suggestions(state: dict) -> list[str]:
+    if state.get("phase") == "done":
+        return DONE_SUGGESTIONS
+    if not state.get("brief_complete"):
+        brief = state.get("brief", {})
+        for field, options in FIELD_SUGGESTIONS.items():
+            if not brief.get(field):
+                return options
+    return []
+
+
 class NewChatIn(BaseModel):
     uid: str
 
@@ -185,7 +217,12 @@ def chat(body: ChatIn):
 
     def events():
         # two stream modes multiplexed: "messages" gives token-by-token LLM
-        # output (with which node produced it), "updates" gives node results
+        # output (tagged with the node that produced it), "updates" gives
+        # node results. The wire protocol mirrors claude/openai chat UIs:
+        #   thinking  — deltas from silent nodes, shown in a thinking block
+        #   token     — deltas of the user-visible answer (respond node)
+        #   node      — a node finished (carries deliver's built message)
+        #   suggestions / done — computed after the run
         for mode, chunk in graph.stream(
             {"messages": [("user", body.message)]},
             config,
@@ -193,10 +230,18 @@ def chat(body: ChatIn):
         ):
             if mode == "messages":
                 msg_chunk, meta = chunk
-                # only the respond node speaks prose to the user — stream it live;
-                # other nodes emit JSON/copy that's delivered as results instead
-                if meta.get("langgraph_node") == "respond" and msg_chunk.content:
+                node = meta.get("langgraph_node")
+                if not getattr(msg_chunk, "content", None):
+                    continue
+                if node == "respond":
                     yield f"event: token\ndata: {json.dumps({'text': msg_chunk.content})}\n\n"
+                else:
+                    payload = {
+                        "node": node,
+                        "label": NODE_LABELS.get(node, node),
+                        "text": msg_chunk.content,
+                    }
+                    yield f"event: thinking\ndata: {json.dumps(payload)}\n\n"
                 continue
 
             for node_name, node_update in chunk.items():
@@ -210,6 +255,12 @@ def chat(body: ChatIn):
                 yield f"event: node\ndata: {json.dumps(payload)}\n\n"
 
         final = graph.get_state(config).values
+
+        # quick replies — computed HERE (deterministic, free), not in the FE
+        chips = _suggestions(final)
+        if chips:
+            yield f"event: suggestions\ndata: {json.dumps({'items': chips})}\n\n"
+
         snapshot = {
             "phase": final.get("phase"),
             "brief": final.get("brief", {}),

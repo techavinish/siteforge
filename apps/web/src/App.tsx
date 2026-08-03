@@ -6,8 +6,14 @@ import ConfirmModal from "./ConfirmModal";
 import { IconGlobe, IconStop } from "./icons";
 import Preview, { type Draft } from "./Preview";
 import Sidebar, { type ChatMeta } from "./Sidebar";
+import Thinking, { type ThinkBlock } from "./Thinking";
 
-type Msg = { role: "user" | "agent"; text: string };
+type Msg = {
+  role: "user" | "agent";
+  text: string;
+  thinking?: ThinkBlock[];
+  attachment?: "site";
+};
 
 const PHASE_LABEL: Record<string, string> = {
   thinking: "Thinking…",
@@ -53,6 +59,8 @@ export default function App() {
   const [starters, setStarters] = useState(pickStarters);
   const [deleteTarget, setDeleteTarget] = useState<ChatMeta | null>(null);
   const [streamText, setStreamText] = useState("");
+  const [thinks, setThinks] = useState<ThinkBlock[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [previewOpen, setPreviewOpen] = useState(true);
   const [previewWide, setPreviewWide] = useState(false);
   const sidebarWasOpen = useRef(false);
@@ -118,10 +126,23 @@ export default function App() {
       fetch(`/agent/chats/${id}/messages`).then((r) => r.json()),
       fetch(`/agent/draft/${id}`).then((r) => r.json()),
     ]);
-    setMsgs(history_);
+    // the site artifact belongs to the message that produced it — on
+    // restore, that's the thread's last agent message
     const hasDraft = d?.pages && Object.keys(d.pages).length;
+    const msgs_: Msg[] = history_;
+    if (hasDraft) {
+      for (let i = msgs_.length - 1; i >= 0; i--) {
+        if (msgs_[i].role === "agent") {
+          msgs_[i] = { ...msgs_[i], attachment: "site" };
+          break;
+        }
+      }
+    }
+    setMsgs(msgs_);
     setDraft(hasDraft ? d : null);
     setPreviewOpen(Boolean(hasDraft));
+    setSuggestions([]);
+    setThinks([]);
   }, []);
 
   useEffect(() => {
@@ -187,10 +208,11 @@ export default function App() {
     setInput("");
     setMsgs((m) => [...m, { role: "user", text }]);
     setBusy(true);
+    setSuggestions([]);
 
-    // acc mirrors streamText — a plain variable survives the read loop;
-    // state exists only to render
+    // plain variables survive the read loop; state exists only to render
     let acc = "";
+    let liveThinks: ThinkBlock[] = [];
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -220,16 +242,40 @@ export default function App() {
           if (type === "token") {
             acc += data.text;
             setStreamText(acc);
+          } else if (type === "thinking") {
+            const last = liveThinks[liveThinks.length - 1];
+            if (last && last.node === data.node) last.text += data.text;
+            else liveThinks.push({ node: data.node, label: data.label, text: data.text });
+            setThinks([...liveThinks]);
           } else if (type === "node") {
             if (data.phase) setPhase(data.phase);
             if (data.node === "respond" && acc) {
-              // stream finished — promote the live text into a message
-              const final = acc;
+              // answer stream finished — promote it, carrying its thinking
+              const msg: Msg = {
+                role: "agent",
+                text: acc,
+                thinking: liveThinks.length ? [...liveThinks] : undefined,
+              };
               acc = "";
+              liveThinks = [];
               setStreamText("");
-              setMsgs((m) => [...m, { role: "agent", text: final }]);
+              setThinks([]);
+              setMsgs((m) => [...m, msg]);
             }
-            if (data.reply) setMsgs((m) => [...m, { role: "agent", text: data.reply }]);
+            if (data.reply) {
+              // deliver: the site artifact is PART of this message
+              const msg: Msg = {
+                role: "agent",
+                text: data.reply,
+                thinking: liveThinks.length ? [...liveThinks] : undefined,
+                attachment: data.node === "deliver" ? "site" : undefined,
+              };
+              liveThinks = [];
+              setThinks([]);
+              setMsgs((m) => [...m, msg]);
+            }
+          } else if (type === "suggestions") {
+            setSuggestions(data.items ?? []);
           } else if (type === "done" && data.phase === "done") {
             finished = true;
           }
@@ -244,7 +290,16 @@ export default function App() {
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {
         // user pressed stop — keep whatever already streamed
-        if (acc) setMsgs((m) => [...m, { role: "agent", text: acc + " ⏹" }]);
+        if (acc || liveThinks.length) {
+          setMsgs((m) => [
+            ...m,
+            {
+              role: "agent",
+              text: acc ? acc + " ⏹" : "⏹ Stopped.",
+              thinking: liveThinks.length ? [...liveThinks] : undefined,
+            },
+          ]);
+        }
       } else {
         setMsgs((m) => [
           ...m,
@@ -254,6 +309,7 @@ export default function App() {
     } finally {
       abortRef.current = null;
       setStreamText("");
+      setThinks([]);
       setBusy(false);
       setPhase(null);
     }
@@ -332,31 +388,34 @@ export default function App() {
             m.role === "user" ? (
               <div key={i} className="bubble user">{m.text}</div>
             ) : (
-              <div
-                key={i}
-                className="agent-md"
-                dangerouslySetInnerHTML={{ __html: marked.parse(m.text, { async: false }) as string }}
-              />
+              <div key={i} className="agent-turn">
+                {m.thinking && <Thinking blocks={m.thinking} />}
+                <div
+                  className="agent-md"
+                  dangerouslySetInnerHTML={{ __html: marked.parse(m.text, { async: false }) as string }}
+                />
+                {m.attachment === "site" && draft && (
+                  <button className="site-card" onClick={() => setPreviewOpen((o) => !o)}>
+                    <span className="site-card-ico"><IconGlobe /></span>
+                    <span className="site-card-body">
+                      <strong>{draft.spec?.site_name ?? "Your website"}</strong>
+                      <span className="muted">
+                        {Object.keys(draft.pages ?? {}).length} pages · {previewOpen ? "hide" : "view"} website
+                      </span>
+                    </span>
+                  </button>
+                )}
+              </div>
             ),
           )}
-          {draft && (
-            <button className="site-card" onClick={() => setPreviewOpen((o) => !o)}>
-              <span className="site-card-ico"><IconGlobe /></span>
-              <span className="site-card-body">
-                <strong>{draft.spec?.site_name ?? "Your website"}</strong>
-                <span className="muted">
-                  {Object.keys(draft.pages ?? {}).length} pages · {previewOpen ? "hide" : "view"} website
-                </span>
-              </span>
-            </button>
-          )}
+          {thinks.length > 0 && <Thinking blocks={thinks} streaming={!streamText} />}
           {streamText && (
             <div
               className="agent-md streaming"
               dangerouslySetInnerHTML={{ __html: marked.parse(streamText, { async: false }) as string }}
             />
           )}
-          {busy && !streamText && (
+          {busy && !streamText && thinks.length === 0 && (
             <div className="working-row">
               <span className="dots"><i /><i /><i /></span>
               {phase && PHASE_LABEL[phase] && <span className="phase-tag">{PHASE_LABEL[phase]}</span>}
@@ -364,6 +423,14 @@ export default function App() {
           )}
           <div ref={bottomRef} />
         </section>
+
+        {suggestions.length > 0 && !busy && (
+          <div className="suggest-row">
+            {suggestions.map((s) => (
+              <button key={s} className="chip sm" onClick={() => send(s)}>{s}</button>
+            ))}
+          </div>
+        )}
 
         <footer className="composer">
           <input
