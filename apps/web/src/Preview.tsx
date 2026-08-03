@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { authFetch, idToken } from "./api";
 import { IconExpand, IconX } from "./icons";
 
 export type Draft = {
@@ -37,12 +38,18 @@ export default function Preview({
   const [active, setActive] = useState(paths[0] ?? "/");
   const [liveUrl, setLiveUrl] = useState<string | null>(draft.live_url ?? null);
   const [publishing, setPublishing] = useState(false);
+  const [frameToken, setFrameToken] = useState("");
+
+  // the iframe can't send headers — its src carries the ID token instead
+  useEffect(() => {
+    idToken().then(setFrameToken);
+  }, [threadId]);
 
   async function publishSite() {
     if (publishing) return;
     setPublishing(true);
     try {
-      const r = await fetch(`/agent/publish/${threadId}`, { method: "POST" });
+      const r = await authFetch(`/agent/publish/${threadId}`, { method: "POST" });
       if (!r.ok) throw new Error(`publish failed (${r.status})`);
       const { url } = await r.json();
       setLiveUrl(url);
@@ -95,12 +102,14 @@ export default function Preview({
         </button>
       </div>
 
-      <iframe
-        className="site-frame"
-        title="Website preview"
-        sandbox="allow-scripts"
-        src={`/agent/site/${threadId}?path=${encodeURIComponent(active)}`}
-      />
+      {frameToken && (
+        <iframe
+          className="site-frame"
+          title="Website preview"
+          sandbox="allow-scripts"
+          src={`/agent/site/${threadId}?path=${encodeURIComponent(active)}&token=${encodeURIComponent(frameToken)}`}
+        />
+      )}
     </aside>
   );
 }

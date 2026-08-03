@@ -13,15 +13,48 @@ import json
 import uuid
 
 import psycopg
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 from langgraph.checkpoint.postgres import PostgresSaver
 from pydantic import BaseModel
 
-from config import DATABASE_URL
+from config import DATABASE_URL, GCP_PROJECT
 from graph import build_graph
 from publish import publish_site
 from render import build_site_html
+
+_token_adapter = google_requests.Request()
+
+
+def current_uid(request: Request) -> str:
+    """Verify the Firebase ID token — header for API calls, ?token= for
+    resources loaded by the browser itself (the preview iframe can't set
+    headers). The client is never trusted with a bare uid."""
+    header = request.headers.get("Authorization", "")
+    token = header.removeprefix("Bearer ").strip() if header.startswith("Bearer ") else ""
+    if not token:
+        token = request.query_params.get("token", "")
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing credentials")
+    try:
+        claims = google_id_token.verify_firebase_token(
+            token, _token_adapter, audience=GCP_PROJECT
+        )
+        return claims["sub"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+def own_thread(thread_id: str, uid: str) -> None:
+    """404 for strangers — don't even confirm the thread exists."""
+    with psycopg.connect(DATABASE_URL) as conn:
+        row = conn.execute(
+            "SELECT uid FROM chats WHERE thread_id=%s", (thread_id,)
+        ).fetchone()
+    if not row or row[0] != uid:
+        raise HTTPException(status_code=404, detail="Not found")
 
 app = FastAPI(title="siteforge-agent")
 
@@ -134,20 +167,20 @@ def _suggestions(state: dict, last_reply: str = "") -> list[str]:
 
 
 class NewChatIn(BaseModel):
-    uid: str
+    uid: str = ""  # ignored — identity comes from the verified token
 
 
 @app.post("/agent/chats")
-def create_chat(body: NewChatIn):
+def create_chat(body: NewChatIn, uid: str = Depends(current_uid)):
     thread_id = f"c-{uuid.uuid4().hex[:12]}"
     with psycopg.connect(DATABASE_URL) as conn:
-        conn.execute("INSERT INTO chats (thread_id, uid) VALUES (%s, %s)", (thread_id, body.uid))
+        conn.execute("INSERT INTO chats (thread_id, uid) VALUES (%s, %s)", (thread_id, uid))
         conn.commit()
     return {"thread_id": thread_id}
 
 
 @app.get("/agent/chats")
-def list_chats(uid: str, q: str = "", cursor: str = "", limit: int = 30):
+def list_chats(q: str = "", cursor: str = "", limit: int = 30, uid: str = Depends(current_uid)):
     """Server-side search + keyset pagination (cursor = updated_at|thread_id)."""
     limit = min(max(limit, 1), 100)
     sql = "SELECT thread_id, title, updated_at FROM chats WHERE uid=%s"
@@ -180,7 +213,8 @@ class RenameIn(BaseModel):
 
 
 @app.patch("/agent/chats/{thread_id}")
-def rename_chat(thread_id: str, body: RenameIn):
+def rename_chat(thread_id: str, body: RenameIn, uid: str = Depends(current_uid)):
+    own_thread(thread_id, uid)
     with psycopg.connect(DATABASE_URL) as conn:
         conn.execute(
             "UPDATE chats SET title=%s WHERE thread_id=%s",
@@ -191,7 +225,8 @@ def rename_chat(thread_id: str, body: RenameIn):
 
 
 @app.delete("/agent/chats/{thread_id}")
-def delete_chat(thread_id: str):
+def delete_chat(thread_id: str, uid: str = Depends(current_uid)):
+    own_thread(thread_id, uid)
     """Remove the chat and its checkpointed state."""
     conn = psycopg.connect(DATABASE_URL, autocommit=True)
     with conn:
@@ -233,7 +268,8 @@ def _ensure_title(thread_id: str, first_message: str) -> None:
 
 
 @app.get("/agent/chats/{thread_id}/messages")
-def chat_messages(thread_id: str, cursor: str = "", limit: int = 50):
+def chat_messages(thread_id: str, cursor: str = "", limit: int = 50, uid: str = Depends(current_uid)):
+    own_thread(thread_id, uid)
     """Latest page first; cursor (a message id) walks backwards in history."""
     limit = min(max(limit, 1), 200)
     sql = "SELECT id, role, content, thinking, attachment FROM messages WHERE thread_id=%s"
@@ -270,12 +306,14 @@ def chat_messages(thread_id: str, cursor: str = "", limit: int = 50):
 
 
 @app.get("/healthz")
+@app.get("/agent/healthz")  # hosting forwards the full /agent/* path
 def healthz():
     return {"ok": True}
 
 
 @app.get("/agent/site/{thread_id}", response_class=HTMLResponse)
-def site(thread_id: str, path: str = "/"):
+def site(thread_id: str, path: str = "/", uid: str = Depends(current_uid)):
+    own_thread(thread_id, uid)
     """The rendered website itself — the same document deploy_site publishes."""
     state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
     pages = state.get("pages", {})
@@ -287,7 +325,8 @@ def site(thread_id: str, path: str = "/"):
 
 
 @app.get("/agent/draft/{thread_id}")
-def draft(thread_id: str):
+def draft(thread_id: str, uid: str = Depends(current_uid)):
+    own_thread(thread_id, uid)
     """Full draft for a conversation — spec, brief, and every page's copy."""
     state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
     with psycopg.connect(DATABASE_URL) as conn:
@@ -305,7 +344,8 @@ def draft(thread_id: str):
 
 
 @app.post("/agent/publish/{thread_id}")
-def publish(thread_id: str):
+def publish(thread_id: str, uid: str = Depends(current_uid)):
+    own_thread(thread_id, uid)
     """deploy_site: render every page live-mode and release it to Firebase
     Hosting on the business's own sub-site. Re-publishing reuses the site."""
     state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
@@ -331,7 +371,8 @@ def publish(thread_id: str):
 
 
 @app.post("/agent/chat")
-def chat(body: ChatIn):
+def chat(body: ChatIn, uid: str = Depends(current_uid)):
+    own_thread(body.thread_id, uid)
     config = {"configurable": {"thread_id": body.thread_id}}
 
     # bump recency; the title is LLM-generated after the reply streams

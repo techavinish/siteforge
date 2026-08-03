@@ -22,6 +22,18 @@ variable "env" {
   default     = {}
 }
 
+variable "secret_env" {
+  description = "Env vars injected from Secret Manager: ENV_NAME -> secret id. The value never exists in terraform state or the console."
+  type        = map(string)
+  default     = {}
+}
+
+variable "cloudsql_instances" {
+  description = "Cloud SQL connection names to mount at /cloudsql (unix socket)"
+  type        = list(string)
+  default     = []
+}
+
 variable "service_account_email" {
   description = "Runtime identity of the service; null = compute default SA"
   type        = string

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
+import { authFetch, idToken, setAuthUser } from "./api";
 import ConfirmModal from "./ConfirmModal";
 import { IconArrowUp, IconChevronDown, IconGlobe, IconStop } from "./icons";
 import Preview, { type Draft } from "./Preview";
@@ -25,6 +26,7 @@ const PHASE_LABEL: Record<string, string> = {
 function hashThread(): string | null {
   return location.hash.match(/^#\/c\/(.+)$/)?.[1] ?? null;
 }
+
 
 const STARTER_POOL = [
   { emoji: "🍰", label: "Bakery with custom cakes", prompt: "I run a bakery that specialises in custom wedding cakes and want a website for it." },
@@ -117,7 +119,7 @@ export default function App() {
 
   async function confirmDelete() {
     if (!deleteTarget) return;
-    await fetch(`/agent/chats/${deleteTarget.thread_id}`, { method: "DELETE" });
+    await authFetch(`/agent/chats/${deleteTarget.thread_id}`, { method: "DELETE" });
     if (user) await loadChats(user);
     if (thread === deleteTarget.thread_id) {
       setThread(null);
@@ -129,7 +131,7 @@ export default function App() {
   }
 
   async function renameChat(id: string, title: string) {
-    await fetch(`/agent/chats/${id}`, {
+    await authFetch(`/agent/chats/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
@@ -148,7 +150,7 @@ export default function App() {
       const q = opts.q ?? searchRef.current;
       if (q) params.set("q", q);
       if (opts.cursor) params.set("cursor", opts.cursor);
-      const { items, next_cursor } = await fetch(`/agent/chats?${params}`).then((r) => r.json());
+      const { items, next_cursor } = await authFetch(`/agent/chats?${params}`).then((r) => r.json());
       setChats((prev) => (opts.append ? [...prev, ...items] : items));
       setChatsCursor(next_cursor);
       return items as ChatMeta[];
@@ -166,8 +168,8 @@ export default function App() {
     // moves between conversations — single-route SPA, hash as state
     if (hashThread() !== id) history.pushState(null, "", `#/c/${id}`);
     const [page, d] = await Promise.all([
-      fetch(`/agent/chats/${id}/messages`).then((r) => r.json()),
-      fetch(`/agent/draft/${id}`).then((r) => r.json()),
+      authFetch(`/agent/chats/${id}/messages`).then((r) => r.json()),
+      authFetch(`/agent/draft/${id}`).then((r) => r.json()),
     ]);
     // the site artifact belongs to the message that produced it — on
     // restore, that's the thread's last agent message (older schema rows)
@@ -223,6 +225,7 @@ export default function App() {
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
+      setAuthUser(u);
       setUser(u);
       setLoading(false);
       if (u) {
@@ -274,7 +277,7 @@ export default function App() {
     if (!user || !raw.trim() || busy) return;
     let tid = thread;
     if (!tid) {
-      const created = await fetch("/agent/chats", {
+      const created = await authFetch("/agent/chats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid: user.uid }),
@@ -299,7 +302,7 @@ export default function App() {
 
     try {
       const token = await user.getIdToken();
-      const res = await fetch("/agent/chat", {
+      const res = await authFetch("/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ thread_id: tid, message: text }),
@@ -365,7 +368,7 @@ export default function App() {
         }
       }
       if (finished && tid) {
-        const d = await fetch(`/agent/draft/${tid}`).then((r) => r.json());
+        const d = await authFetch(`/agent/draft/${tid}`).then((r) => r.json());
         setDraft(d);
         setPreviewOpen(true); // a fresh draft presents itself
       }

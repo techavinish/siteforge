@@ -15,6 +15,10 @@ output "gateway_url" {
   value = module.gateway.uri
 }
 
+output "agent_url" {
+  value = module.agent.uri
+}
+
 # Public client config for the web app (api_key here is an identifier,
 # not a secret — Firebase security comes from Auth rules + IAM)
 output "firebase_web_config" {

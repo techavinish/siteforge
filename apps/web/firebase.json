@@ -12,6 +12,13 @@
         }
       },
       {
+        "source": "/agent/**",
+        "run": {
+          "serviceId": "agent",
+          "region": "asia-south1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
