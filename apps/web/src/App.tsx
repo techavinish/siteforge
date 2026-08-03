@@ -385,9 +385,10 @@ export default function App() {
         </footer>
       </main>
 
-      {showPreview && draft && (
+      {showPreview && draft && thread && (
         <Preview
           draft={draft}
+          threadId={thread}
           wide={previewWide}
           onToggleWide={togglePreviewWide}
           onClose={() => setPreviewOpen(false)}

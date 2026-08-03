@@ -13,13 +13,14 @@ import json
 import uuid
 
 import psycopg
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, StreamingResponse
 from langgraph.checkpoint.postgres import PostgresSaver
 from pydantic import BaseModel
 
 from config import DATABASE_URL
 from graph import build_graph
+from render import build_site_html
 
 app = FastAPI(title="siteforge-agent")
 
@@ -143,6 +144,18 @@ def chat_messages(thread_id: str):
 @app.get("/healthz")
 def healthz():
     return {"ok": True}
+
+
+@app.get("/agent/site/{thread_id}", response_class=HTMLResponse)
+def site(thread_id: str, path: str = "/"):
+    """The rendered website itself — the same document deploy_site publishes."""
+    state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
+    pages = state.get("pages", {})
+    if not pages:
+        raise HTTPException(status_code=404, detail="No site generated yet")
+    if path not in pages:
+        path = next(iter(pages))
+    return build_site_html(state.get("spec", {}), pages, path)
 
 
 @app.get("/agent/draft/{thread_id}")
