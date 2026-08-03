@@ -55,6 +55,21 @@ export default function App() {
   const [streamText, setStreamText] = useState("");
   const [previewOpen, setPreviewOpen] = useState(true);
   const [previewWide, setPreviewWide] = useState(false);
+  const sidebarWasOpen = useRef(false);
+
+  function togglePreviewWide() {
+    setPreviewWide((w) => {
+      if (!w) {
+        // going wide: give the canvas the room — tuck the sidebar away,
+        // remembering whether to bring it back on shrink
+        sidebarWasOpen.current = !collapsed;
+        setCollapsed(true);
+      } else if (sidebarWasOpen.current) {
+        setCollapsed(false);
+      }
+      return !w;
+    });
+  }
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -374,7 +389,7 @@ export default function App() {
         <Preview
           draft={draft}
           wide={previewWide}
-          onToggleWide={() => setPreviewWide((w) => !w)}
+          onToggleWide={togglePreviewWide}
           onClose={() => setPreviewOpen(false)}
         />
       )}
