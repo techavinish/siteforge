@@ -111,14 +111,36 @@ export default function App() {
   const [atBottom, setAtBottom] = useState(true);
   const [positioning, setPositioning] = useState(false);
   const [wordIdx, setWordIdx] = useState(0);
+  const [typed, setTyped] = useState("");
+  const [erasing, setErasing] = useState(false);
 
-  // rotate the welcome headline only while the welcome screen is visible
+  // typewriter: type the word character by character, hold, erase, next —
+  // width grows/shrinks naturally with the characters, no layout jump
   const onWelcome = msgs.length === 0 && !busy;
   useEffect(() => {
     if (!onWelcome) return;
-    const t = setInterval(() => setWordIdx((i) => (i + 1) % BUILD_WORDS.length), 2200);
-    return () => clearInterval(t);
-  }, [onWelcome]);
+    const word = BUILD_WORDS[wordIdx];
+    let delay: number;
+    let step: () => void;
+    if (!erasing && typed === word) {
+      delay = 1600; // let the finished word breathe
+      step = () => setErasing(true);
+    } else if (erasing && typed === "") {
+      delay = 250;
+      step = () => {
+        setErasing(false);
+        setWordIdx((i) => (i + 1) % BUILD_WORDS.length);
+      };
+    } else if (erasing) {
+      delay = 35;
+      step = () => setTyped(word.slice(0, typed.length - 1));
+    } else {
+      delay = 70;
+      step = () => setTyped(word.slice(0, typed.length + 1));
+    }
+    const t = setTimeout(step, delay);
+    return () => clearTimeout(t);
+  }, [onWelcome, typed, erasing, wordIdx]);
 
   function onChatScroll() {
     const el = chatRef.current;
@@ -493,13 +515,12 @@ export default function App() {
           {msgs.length === 0 && (
             <div className="hero-empty">
               <h2>
-                Let's build{" "}
-                <span key={wordIdx} className="rotate-word">{BUILD_WORDS[wordIdx]}</span>
+                Let's build <span className="type-word">{typed}</span>
+                <span className="type-caret" />
               </h2>
               <p className="muted">
-                Tell me about your business in one sentence. I'll ask a couple of
-                smart questions, then design the pages, write every word, and put
-                your website live on the internet — in minutes.
+                One sentence about your business — I'll design it, write it,
+                and put it live. In minutes.
               </p>
               <div className="chips">
                 {starters.map((s) => (
@@ -554,9 +575,10 @@ export default function App() {
         {!atBottom && msgs.length > 0 && (
           <button className="jump-down" onClick={scrollToBottom} aria-label="Jump to latest">
             <svg
-              width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.4"
+              width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="var(--accent)" strokeWidth="2.6"
               strokeLinecap="round" strokeLinejoin="round"
+              style={{ display: "block" }}
             >
               <path d="M6 9l6 6 6-6" />
             </svg>

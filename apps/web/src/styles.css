@@ -225,16 +225,15 @@ button.primary:disabled { opacity: 0.45; }
   letter-spacing: -0.015em; font-size: 1.9rem; margin-bottom: 10px;
   min-height: 2.6rem;
 }
-.rotate-word {
-  display: inline-block; color: var(--accent);
-  animation: word-in 0.45s var(--ease) both;
-}
-@keyframes word-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.97); filter: blur(3px); }
-  to { opacity: 1; transform: none; filter: none; }
+.type-word { color: var(--accent); }
+.type-caret {
+  display: inline-block; width: 3px; height: 1.6rem; margin-left: 3px;
+  vertical-align: -0.2rem; border-radius: 2px;
+  background: var(--accent);
+  animation: blink 1s steps(2) infinite;
 }
 .hero-empty p { line-height: 1.7; }
-@media (prefers-reduced-motion: reduce) { .rotate-word { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .type-caret { animation: none; } }
 
 /* current chat name when the sidebar is tucked away (claude-style) */
 .chat-top {
