@@ -38,6 +38,19 @@ def healthz():
     return {"ok": True}
 
 
+@app.get("/agent/draft/{thread_id}")
+def draft(thread_id: str):
+    """Full draft for a conversation — spec, brief, and every page's copy."""
+    state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
+    return {
+        "phase": state.get("phase"),
+        "brief": state.get("brief", {}),
+        "spec": state.get("spec", {}),
+        "pages": state.get("pages", {}),
+        "score": state.get("critique", {}).get("score"),
+    }
+
+
 @app.post("/agent/chat")
 def chat(body: ChatIn):
     config = {"configurable": {"thread_id": body.thread_id}}
