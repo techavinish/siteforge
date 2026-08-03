@@ -43,7 +43,26 @@ button:focus:not(:focus-visible), input:focus:not(:focus-visible) { outline: non
 }
 h1, h2, h3, .logo { font-family: var(--font-display); }
 * { box-sizing: border-box; }
+:root { --ease: cubic-bezier(0.2, 0.8, 0.2, 1); }
 body { margin: 0; background: var(--paper); color: var(--ink); }
+/* whisper of warmth behind everything — premium, not decorative */
+.workspace {
+  background:
+    radial-gradient(900px 500px at 85% -10%, var(--accent-soft), transparent 65%),
+    var(--paper);
+}
+/* every press acknowledges the finger */
+button { transition: transform 0.1s var(--ease); }
+button:active:not(:disabled) { transform: scale(0.97); }
+/* first paint: the workspace settles in */
+.sidebar { animation: settle-l 0.3s var(--ease) both; }
+.chat-shell { animation: settle-u 0.35s var(--ease) both; }
+@keyframes settle-l { from { opacity: 0; translate: -10px 0; } }
+@keyframes settle-u { from { opacity: 0; translate: 0 8px; } }
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .chat-shell { animation: none; }
+  button:active:not(:disabled) { transform: none; }
+}
 .shell { max-width: 560px; margin: 12vh auto 0; padding: 0 24px; }
 h1 { font-size: 2.2rem; margin: 0 0 4px; letter-spacing: -0.02em; }
 .tagline { opacity: 0.7; margin: 0 0 32px; }
@@ -318,17 +337,21 @@ button.primary:disabled { opacity: 0.45; }
   contain-intrinsic-size: auto 64px;
 }
 .jump-down {
-  position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%);
+  /* centered without transform, so entrance animation can't cancel it */
+  position: absolute; bottom: 96px; left: 0; right: 0; margin-inline: auto;
   width: 38px; height: 38px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--panel); border: 1px solid var(--line); color: var(--ink);
   cursor: pointer; z-index: 5;
   box-shadow: 0 4px 14px rgba(0,0,0,0.18);
-  animation: rise 0.2s ease both;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  animation: fade 0.18s ease both;
+  transition: border-color 0.15s var(--ease), color 0.15s var(--ease),
+    transform 0.12s var(--ease);
 }
 .jump-down svg { display: block; }
-.jump-down:hover { border-color: var(--accent); color: var(--accent); }
+.jump-down:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+.jump-down:active { transform: none; }
+.chat.positioning { visibility: hidden; }
 .load-more {
   margin: 6px 4px; padding: 8px; font: inherit; font-size: 0.75rem;
   color: var(--accent); background: none; border: none; cursor: pointer;
@@ -373,7 +396,13 @@ button.primary:disabled { opacity: 0.45; }
   flex: 1; font: inherit; padding: 12px 16px; border-radius: 12px;
   border: 1px solid var(--line); background: var(--panel); color: var(--ink);
 }
-.composer input:focus { outline: none; border-color: var(--accent); }
+.composer input {
+  transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+}
+.composer input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 .composer .stop {
   display: inline-flex; align-items: center; justify-content: center;
   width: 44px; border-radius: 12px;

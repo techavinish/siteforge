@@ -95,6 +95,7 @@ export default function App() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLElement>(null);
   const [atBottom, setAtBottom] = useState(true);
+  const [positioning, setPositioning] = useState(false);
 
   function onChatScroll() {
     const el = chatRef.current;
@@ -159,6 +160,8 @@ export default function App() {
     setThread(id);
     setPhase(null);
     setStreamText("");
+    setAtBottom(true);
+    setPositioning(true); // hide the list until it's anchored at the bottom
     // the thread id lives in the URL: refresh restores it, back/forward
     // moves between conversations — single-route SPA, hash as state
     if (hashThread() !== id) history.pushState(null, "", `#/c/${id}`);
@@ -184,11 +187,16 @@ export default function App() {
     setPreviewOpen(Boolean(hasDraft));
     setSuggestions([]);
     setThinks([]);
-    // land at the latest message instantly — no visible scroll animation
+    // anchor at the latest message BEFORE revealing — the user never sees
+    // the list scroll; it simply opens at the bottom (double rAF waits for
+    // layout of the freshly rendered messages)
     requestAnimationFrame(() => {
-      const el = chatRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
-      setAtBottom(true);
+      requestAnimationFrame(() => {
+        const el = chatRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+        setAtBottom(true);
+        setPositioning(false);
+      });
     });
   }, []);
 
@@ -255,6 +263,8 @@ export default function App() {
     setMsgs([]);
     setDraft(null);
     setPhase(null);
+    setAtBottom(true);
+    setSuggestions([]);
     setStarters(pickStarters()); // fresh suggestions every time
     history.pushState(null, "", "#/");
   }
@@ -446,7 +456,11 @@ export default function App() {
       )}
 
       <main className="chat-shell">
-        <section className="chat" ref={chatRef} onScroll={onChatScroll}>
+        <section
+          className={positioning ? "chat positioning" : "chat"}
+          ref={chatRef}
+          onScroll={onChatScroll}
+        >
           {msgs.length === 0 && (
             <div className="hero-empty">
               <h2>What are we building today?</h2>
@@ -503,7 +517,7 @@ export default function App() {
           <div ref={bottomRef} />
         </section>
 
-        {!atBottom && (
+        {!atBottom && msgs.length > 0 && (
           <button className="jump-down" onClick={scrollToBottom} aria-label="Jump to latest">
             <IconChevronDown />
           </button>
