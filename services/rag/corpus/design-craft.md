@@ -49,3 +49,19 @@ Words exist to make the page easier to use. Active voice; a control says
 exactly what happens ("Book a class", never "Submit"). Name things by what
 customers recognize, not how the business is organized. Being specific
 always beats being clever.
+
+## Palette rotation — never the same warm-craft default twice
+The most common generated-design tell is the beige/cream background with a
+brass, clay or ochre accent and espresso text — reached for on every
+"premium" or "artisan" brief. Treat it as banned unless the owner names
+those colors. Rotate real alternatives: cold luxury (silver-grey, chrome,
+smoke); forest (deep green, bone, amber); black and tan (true off-black
+with warm tan, no beige); cobalt on cream; terracotta against slate; olive
+with brick; or pure monochrome with one saturated pop. One accent per
+site, locked everywhere — a rose-accented site never gets a teal badge.
+
+## Shape consistency
+Pick one corner-radius scale per site and hold it: all-sharp, all-soft, or
+a documented rule (buttons pill, cards 14, inputs 8). Round buttons on a
+square layout is broken design. Shadows, when used, are tinted toward the
+page's own ink — never pure black on a light page.
