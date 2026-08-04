@@ -61,9 +61,10 @@ export default function Thinking({
             setOpen((o) => !o);
           }}
         >
-          <span className="think-dot" />
-          <span>{streaming ? current.label : "Thought process"}</span>
           <span className="think-chev">{open ? "▾" : "▸"}</span>
+          <span className={streaming ? "shimmer" : ""}>
+            {streaming ? `${current.label}…` : "Thought process"}
+          </span>
         </button>
         <button
           className="icon-btn think-expand"

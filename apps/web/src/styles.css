@@ -268,7 +268,7 @@ button.primary:disabled { opacity: 0.45; }
   display: inline-flex; align-items: center; gap: 8px;
   font: inherit; font-size: 0.8rem; color: var(--ink);
   padding: 9px 15px; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--panel);
+  border: 1px solid var(--line); background: transparent;
   cursor: pointer;
   animation: rise 0.35s ease both;
   transition: border-color 0.15s ease, background 0.15s ease,
@@ -350,36 +350,42 @@ button.primary:disabled { opacity: 0.45; }
 /* agent turn = optional thinking block + answer + optional artifact card */
 .agent-turn { display: flex; flex-direction: column; gap: 10px; }
 
-/* thinking block — a quiet card that can expand to a full reading view */
-.think {
-  font-size: 0.75rem;
-  border: 1px solid var(--line); border-radius: 12px;
-  background: color-mix(in srgb, var(--panel) 55%, transparent);
-  overflow: hidden;
-  transition: border-color 0.18s var(--ease);
-}
-.think.live { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
-.think-bar { display: flex; align-items: center; padding: 2px 6px 2px 4px; }
+/* thinking — classic quiet: a bare muted line (claude), shimmering
+   while active (chatgpt); opens behind a thin rule, expands to overlay */
+.think { font-size: 0.78rem; }
+.think-bar { display: inline-flex; align-items: center; gap: 2px; }
 .think-head {
-  flex: 1; display: inline-flex; align-items: center; gap: 8px;
-  border: none; background: none; padding: 8px 6px; text-align: left;
-  font: inherit; font-size: 0.75rem; color: var(--ink); opacity: 0.65;
-  cursor: pointer; transition: opacity 0.15s ease;
+  display: inline-flex; align-items: center; gap: 7px;
+  border: none; background: none; padding: 3px 4px; margin-left: -4px;
+  font: inherit; font-size: 0.78rem; color: var(--ink); opacity: 0.55;
+  cursor: pointer; border-radius: 6px;
+  transition: opacity 0.15s ease;
 }
-.think-head:hover { opacity: 1; }
-.think-expand { width: 26px; height: 26px; opacity: 0; }
-.think:hover .think-expand { opacity: 0.55; }
+.think-head:hover { opacity: 0.9; }
+.think.live .think-head { opacity: 0.85; }
+.think-expand { width: 24px; height: 24px; opacity: 0; }
+.think:hover .think-expand { opacity: 0.5; }
 .think-expand:hover { opacity: 1 !important; }
-.think-dot {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
-  flex: none;
+.think-chev { font-size: 0.6rem; width: 10px; opacity: 0.7; }
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ink) 38%, transparent) 40%,
+    var(--ink) 50%,
+    color-mix(in srgb, var(--ink) 38%, transparent) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: shimmer 1.8s linear infinite;
 }
-.think.live .think-dot { animation: bounce 1.2s ease-in-out infinite; }
-.think-chev { font-size: 0.65rem; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .shimmer { animation: none; color: var(--ink); background: none; }
+}
 .think-body {
-  margin: 0 10px; padding: 10px 4px 12px;
-  border-top: 1px solid var(--line);
-  max-height: 210px; overflow-y: auto;
+  margin: 6px 0 2px 8px; padding: 2px 0 2px 16px;
+  border-left: 2px solid var(--line);
+  max-height: 220px; overflow-y: auto;
   display: flex; flex-direction: column; gap: 14px;
 }
 .think-section .think-label {
@@ -487,8 +493,8 @@ button.primary:disabled { opacity: 0.45; }
 }
 .bubble.user {
   align-self: flex-end;
-  background: var(--accent-soft); color: var(--ink);
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line);
   border-radius: 16px 16px 4px 16px; /* speech tail toward the sender */
 }
 .bubble.agent { align-self: flex-start; background: rgba(127,127,127,0.12); }
@@ -500,7 +506,7 @@ button.primary:disabled { opacity: 0.45; }
   display: flex; gap: 8px; align-items: center;
   margin: 6px 4px 18px; padding: 7px 7px 7px 20px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 26px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
 }
 .composer:focus-within {

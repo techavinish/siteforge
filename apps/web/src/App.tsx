@@ -597,8 +597,9 @@ export default function App() {
           )}
           {busy && !streamText && thinks.length === 0 && (
             <div className="working-row">
-              <span className="dots"><i /><i /><i /></span>
-              {phase && PHASE_LABEL[phase] && <span className="phase-tag">{PHASE_LABEL[phase]}</span>}
+              <span className="shimmer">
+                {(phase && PHASE_LABEL[phase]) || "Thinking…"}
+              </span>
             </div>
           )}
           <div ref={bottomRef} />
