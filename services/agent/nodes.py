@@ -29,23 +29,36 @@ UNDERSTAND_SYSTEM = f"""You extract structured facts from a conversation between
 a website copilot and a business owner. Fields: {", ".join(REQUIRED_BRIEF_FIELDS)}.
 
 Respond with ONLY JSON: {{"brief": {{...every field learned so far...}},
-"complete": true/false}}. complete=true only when every field has a real value."""
+"complete": true/false,
+"edit_target": "when the site ALREADY EXISTS and the latest message asks for a
+ change, classify it: images (photo/picture changes) | copy (text/wording) |
+ design (colors/fonts/layout/pages) | none (just chatting). Otherwise none."}}
+complete=true only when every field has a real value."""
 
 
 def understand(state: AgentState) -> dict:
     model = chat_model(INTERVIEW_MODEL, temperature=0.1)
+    site_exists = bool(state.get("pages"))
     result = model.invoke(
         [SystemMessage(UNDERSTAND_SYSTEM)]
         + state["messages"]
-        + [SystemMessage(f"Previously known brief: {state.get('brief', {})}")]
+        + [SystemMessage(
+            f"Previously known brief: {state.get('brief', {})}\n"
+            f"Site already exists: {site_exists}"
+        )]
     )
     try:
         data = extract_json(result.content)
     except ValueError:
         data = {"brief": state.get("brief", {}), "complete": False}
+    last_user = next(
+        (m.content for m in reversed(state["messages"]) if m.type == "human"), ""
+    )
     return {
         "brief": data.get("brief", state.get("brief", {})),
         "brief_complete": bool(data.get("complete")),
+        "edit_target": (data.get("edit_target") or "none") if site_exists else "none",
+        "edit_request": last_user if site_exists else "",
         "phase": "thinking",
     }
 
@@ -53,8 +66,11 @@ def understand(state: AgentState) -> dict:
 RESPOND_SYSTEM = """You are SiteForge, a friendly copilot that builds business
 websites. Write your next message to the owner as PLAIN PROSE (no JSON, no markdown
 headers). If the brief is incomplete: warmly ask for at most TWO of the missing
-fields. If complete: give a one-sentence summary of the site you'll build and end
-with exactly: "Building your draft now…"."""
+fields. If the brief is complete and no site exists yet: one-sentence summary of
+what you'll build, ending exactly with: "Building your draft now…".
+If a site exists and the owner asked for a change: confirm the specific change in
+one sentence, ending exactly with: "Updating your site now…". Never re-describe
+the whole site for a small change."""
 
 
 def respond(state: AgentState) -> dict:
@@ -66,7 +82,9 @@ def respond(state: AgentState) -> dict:
         + [SystemMessage(
             f"Brief so far: {state['brief']}\n"
             f"Missing fields: {missing or 'none'}\n"
-            f"Brief complete: {state['brief_complete']}"
+            f"Brief complete: {state['brief_complete']}\n"
+            f"Site exists: {bool(state.get('pages'))}\n"
+            f"Requested change type: {state.get('edit_target', 'none')}"
         )]
     )
     return {"messages": [AIMessage(result.content)], "phase": "interviewing"}
@@ -106,15 +124,21 @@ def plan(state: AgentState) -> dict:
 
 def illustrate(state: AgentState) -> dict:
     """Deterministic node — no LLM. Every page gets a real photo matched to
-    the business and the page's purpose. Failures degrade to no image."""
+    the business and the page's purpose. On an image-edit request, the
+    owner's own words steer the search and force fresh picks."""
     from images import find_image
 
     spec = dict(state["spec"])
     business = state["brief"].get("business_type", "business")
+    editing = state.get("edit_target") == "images"
+    hint = state.get("edit_request", "") if editing else ""
     pages = []
     for page in spec.get("pages", []):
         p = dict(page)
-        img = find_image(f"{business} {p.get('purpose') or p.get('title', '')}")
+        img = find_image(
+            f"{business} {p.get('purpose') or p.get('title', '')} {hint}".strip(),
+            avoid_url=(p.get("image") or {}).get("url") if editing else None,
+        )
         if img:
             p["image"] = img
         pages.append(p)
@@ -168,6 +192,12 @@ def write(state: AgentState) -> dict:
         )
         if feedback:
             prompt += f"\nA reviewer said: {feedback}\nFix those issues this time."
+        if state.get("edit_target") == "copy" and state.get("edit_request"):
+            prompt += (
+                f"\nEXISTING page copy:\n{state.get('pages', {}).get(page['path'], '')}\n"
+                f"The owner asked: {state['edit_request']}\n"
+                "Apply that change and keep everything else as close as possible."
+            )
         system = WRITE_SYSTEM
         if guidelines:
             system += f"\n\nProven guidelines from our knowledge base — apply them:\n{guidelines}"
@@ -198,9 +228,12 @@ def critique(state: AgentState) -> dict:
 
 def deliver(state: AgentState) -> dict:
     spec, pages = state["spec"], state["pages"]
-    summary = (
-        f"Your draft for **{spec.get('site_name', 'your site')}** is ready — "
-        f"{len(pages)} pages: {', '.join(pages)}. "
-        f"Reviewer score: {state['critique'].get('score', '?')}/10."
-    )
-    return {"messages": [AIMessage(summary)], "phase": "done"}
+    if state.get("edit_target") and state.get("edit_target") != "none":
+        summary = f"Done — I've updated the {state['edit_target']} on **{spec.get('site_name', 'your site')}**. Take a look!"
+    else:
+        summary = (
+            f"Your draft for **{spec.get('site_name', 'your site')}** is ready — "
+            f"{len(pages)} pages: {', '.join(pages)}. "
+            f"Reviewer score: {state['critique'].get('score', '?')}/10."
+        )
+    return {"messages": [AIMessage(summary)], "phase": "done", "edit_target": "none"}

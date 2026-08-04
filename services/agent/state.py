@@ -38,4 +38,9 @@ class AgentState(TypedDict):
     critique: dict
     revisions: int
 
+    # when a site already exists, what the latest message asks to change:
+    # images | copy | design | none — routes to ONLY the needed nodes
+    edit_target: str
+    edit_request: str
+
     phase: Phase

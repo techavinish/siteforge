@@ -372,6 +372,12 @@ export default function App() {
         for (const evt of events) {
           const type = evt.match(/^event: (.+)$/m)?.[1];
           const data = JSON.parse(evt.match(/^data: (.+)$/m)?.[1] ?? "{}");
+          const pushAgent = (msg: Msg) =>
+            setMsgs((m) =>
+              m.length && m[m.length - 1].role === "agent" && m[m.length - 1].text === msg.text
+                ? m // guard: never render the same agent message twice in a row
+                : [...m, msg],
+            );
           if (type === "token") {
             acc += data.text;
             setStreamText(acc);
@@ -393,7 +399,7 @@ export default function App() {
               liveThinks = [];
               setStreamText("");
               setThinks([]);
-              setMsgs((m) => [...m, msg]);
+              pushAgent(msg);
             }
             if (data.reply) {
               // deliver: the site artifact is PART of this message
@@ -405,7 +411,7 @@ export default function App() {
               };
               liveThinks = [];
               setThinks([]);
-              setMsgs((m) => [...m, msg]);
+              pushAgent(msg);
             }
           } else if (type === "suggestions") {
             setSuggestions(data.items ?? []);

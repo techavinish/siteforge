@@ -26,7 +26,21 @@ from state import AgentState
 
 
 def after_respond(state: AgentState) -> str:
-    return "plan" if state["brief_complete"] else END
+    if not state["brief_complete"]:
+        return END
+    if not state.get("pages"):
+        return "plan"  # first build: the full pipeline
+    # site exists — run ONLY what the edit needs
+    return {
+        "images": "illustrate",
+        "copy": "write",
+        "design": "plan",
+    }.get(state.get("edit_target", "none"), END)
+
+
+def after_illustrate(state: AgentState) -> str:
+    # image-only edit skips rewriting and review — straight to delivery
+    return "deliver" if state.get("edit_target") == "images" else "write"
 
 
 def after_critique(state: AgentState) -> str:
@@ -50,9 +64,14 @@ def build_graph(checkpointer=None):
 
     g.add_edge(START, "understand")
     g.add_edge("understand", "respond")
-    g.add_conditional_edges("respond", after_respond, {"plan": "plan", END: END})
+    g.add_conditional_edges(
+        "respond", after_respond,
+        {"plan": "plan", "illustrate": "illustrate", "write": "write", END: END},
+    )
     g.add_edge("plan", "illustrate")
-    g.add_edge("illustrate", "write")
+    g.add_conditional_edges(
+        "illustrate", after_illustrate, {"deliver": "deliver", "write": "write"}
+    )
     g.add_edge("write", "review")
     g.add_conditional_edges("review", after_critique, {"write": "write", "deliver": "deliver"})
     g.add_edge("deliver", END)
