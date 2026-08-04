@@ -55,12 +55,17 @@ def replace_source(source: str, chunks: list[str]) -> int:
     return len(chunks)
 
 
-def search(query: str, k: int = 3) -> list[dict]:
+def search(query: str, k: int = 3, exclude: str = "") -> list[dict]:
+    """exclude: source prefix to skip — e.g. 'platinum-' keeps the flywheel's
+    own outputs from drowning out the curated craft on design queries."""
     qvec = _vec(embed([query])[0])
+    sql = "SELECT source, content, 1 - (embedding <=> %s::vector) AS score FROM rag_chunks"
+    params: list = [qvec]
+    if exclude:
+        sql += " WHERE source NOT LIKE %s"
+        params.append(f"{exclude}%")
+    sql += " ORDER BY embedding <=> %s::vector LIMIT %s"
+    params += [qvec, k]
     with psycopg.connect(DATABASE_URL) as conn:
-        rows = conn.execute(
-            """SELECT source, content, 1 - (embedding <=> %s::vector) AS score
-               FROM rag_chunks ORDER BY embedding <=> %s::vector LIMIT %s""",
-            (qvec, qvec, k),
-        ).fetchall()
+        rows = conn.execute(sql, params).fetchall()
     return [{"source": r[0], "content": r[1], "score": round(float(r[2]), 4)} for r in rows]

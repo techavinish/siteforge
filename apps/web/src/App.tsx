@@ -195,7 +195,7 @@ export default function App() {
 
   const loadChats = useCallback(
     async (u: User, opts: { q?: string; cursor?: string; append?: boolean } = {}) => {
-      const params = new URLSearchParams({ uid: u.uid });
+      const params = new URLSearchParams(); // identity comes from the token
       const q = opts.q ?? searchRef.current;
       if (q) params.set("q", q);
       if (opts.cursor) params.set("cursor", opts.cursor);
@@ -357,7 +357,16 @@ export default function App() {
         body: JSON.stringify({ thread_id: tid, message: text }),
         signal: controller.signal,
       });
-      if (!res.ok || !res.body) throw new Error(`agent said ${res.status}`);
+      if (!res.ok) {
+        // surface the BE's own words (rate limits, ownership) — not a code
+        let msg = `agent said ${res.status}`;
+        try {
+          const j = await res.json();
+          if (j.detail) msg = j.detail;
+        } catch { /* body wasn't json */ }
+        throw new Error(msg);
+      }
+      if (!res.body) throw new Error("agent returned no stream");
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -442,10 +451,11 @@ export default function App() {
           ]);
         }
       } else {
-        setMsgs((m) => [
-          ...m,
-          { role: "agent", text: `⚠️ ${e instanceof Error ? e.message : e} — is the agent running on :8001?` },
-        ]);
+        const msg = e instanceof Error ? e.message : String(e);
+        const hint = msg.startsWith("agent said") || msg.includes("fetch")
+          ? " — is the agent running on :8001?"
+          : "";
+        setMsgs((m) => [...m, { role: "agent", text: `⚠️ ${msg}${hint}` }]);
       }
     } finally {
       abortRef.current = null;
@@ -470,12 +480,22 @@ export default function App() {
 
   if (!user) {
     return (
-      <main className="shell">
-        <h1>SiteForge</h1>
-        <p className="tagline">The copilot that builds your business website.</p>
-        <button className="primary" onClick={() => signInWithPopup(auth, googleProvider)}>
-          Sign in with Google
-        </button>
+      <main className="landing">
+        <div className="landing-card">
+          <span className="landing-logo">S</span>
+          <h1>SiteForge</h1>
+          <p className="landing-type">
+            Let's build <span className="type-word">{typed}</span>
+            <span className="type-caret" />
+          </p>
+          <p className="muted landing-sub">
+            Chat for a minute. Get a designed, written, photographed website —
+            live on the internet.
+          </p>
+          <button className="primary landing-cta" onClick={() => signInWithPopup(auth, googleProvider)}>
+            Continue with Google
+          </button>
+        </div>
       </main>
     );
   }

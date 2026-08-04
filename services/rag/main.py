@@ -23,6 +23,7 @@ store.setup()
 class SearchIn(BaseModel):
     query: str
     k: int = 3
+    exclude: str = ""
 
 
 class IngestIn(BaseModel):
@@ -44,4 +45,4 @@ def healthz():
 
 @app.post("/rag/search")
 def search(body: SearchIn):
-    return {"results": store.search(body.query, min(max(body.k, 1), 10))}
+    return {"results": store.search(body.query, min(max(body.k, 1), 10), body.exclude)}

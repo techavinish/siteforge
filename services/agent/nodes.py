@@ -94,8 +94,22 @@ def respond(state: AgentState) -> dict:
     return {"messages": [AIMessage(result.content)], "phase": "interviewing"}
 
 
-PLAN_SYSTEM = """You are a web strategist. Given a business brief, design a small
-website. Respond with ONLY JSON:
+PLAN_SYSTEM = """You are an award-winning design director planning a small-business
+website. This is a PERSUADE surface: its job is a visitor's decision (call, visit,
+order, book) — every page must build the case or lower the barrier.
+
+Design discipline:
+- Ground every choice in THIS business's world — its materials, light, and
+  vernacular. A tattoo studio and a bakery must not feel like siblings.
+- Avoid the AI-default looks (cream+serif+terracotta; black+acid-green;
+  broadsheet hairlines) unless the brand truly demands one.
+- Derive the palette as a SYSTEM with jobs (background, surface, ink, accent),
+  honest contrast, from the subject's real world. Use retrieved theme seeds as
+  inspiration, never verbatim.
+- Choose one place to be bold; keep everything else quiet.
+- The owner's stated tone always wins over your taste.
+
+Respond with ONLY JSON:
 {"site_name": str,
  "theme": {
    "mood": str,
@@ -162,8 +176,15 @@ def illustrate(state: AgentState) -> dict:
     return {"spec": spec, "phase": "illustrating"}
 
 
-WRITE_SYSTEM = """You are a copywriter for small-business websites. Write the FINAL
-copy for ONE page as clean Markdown that renders directly as the website:
+WRITE_SYSTEM = """You are a conversion copywriter for small-business websites. The
+page you write is a PERSUADE surface — every section either builds the case or
+lowers the barrier to action. Copy is design material: active voice, the
+customer's vocabulary, specificity over adjectives (a verifiable detail beats
+"high quality" every time). The headline must pass the "so what" test in three
+seconds and could belong to no other business.
+
+Write the FINAL copy for ONE page as clean Markdown that renders directly as
+the website:
 
 - Start with # (the page's hero headline), then one bold tagline line.
 - Then ## sections with real content: short paragraphs, bullet lists where natural.
@@ -199,8 +220,13 @@ def _retrieve_guidelines(brief: dict, topic: str = "copy") -> str:
             f"{brief.get('business_type', '')} website copy, "
             f"{brief.get('tone', '')} tone, headlines and page structure"
         )
+    # design queries skip the flywheel's own outputs so curated craft and
+    # theme seeds aren't drowned out by our previous generations
+    payload = {"query": query, "k": 4 if topic == "design" else 3}
+    if topic == "design":
+        payload["exclude"] = "platinum-"
     try:
-        r = requests.post(f"{url}/rag/search", json={"query": query, "k": 3}, timeout=6)
+        r = requests.post(f"{url}/rag/search", json=payload, timeout=6)
         r.raise_for_status()
         return "\n\n".join(c["content"] for c in r.json()["results"])
     except Exception:
