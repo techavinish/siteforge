@@ -506,7 +506,6 @@ def publish(thread_id: str, uid: str = Depends(current_uid)):
     return {"url": url}
 
 
-@app.post("/agent/chat")
 def _rate_limit(uid: str) -> None:
     """Per-user daily message cap in Redis (design-review cost guardrail).
     Redis down = no limiting, never an outage."""
@@ -534,6 +533,7 @@ def _rate_limit(uid: str) -> None:
         pass
 
 
+@app.post("/agent/chat")
 def chat(body: ChatIn, uid: str = Depends(current_uid)):
     own_thread(body.thread_id, uid)
     _rate_limit(uid)
