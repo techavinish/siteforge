@@ -20,6 +20,9 @@ REQUIRED_BRIEF_FIELDS = [
     "tone",
 ]
 
+# captured when mentioned, never demanded — they make CTAs genuinely work
+OPTIONAL_BRIEF_FIELDS = ["phone", "email"]
+
 # The interview is SPLIT into two nodes so the user-visible half can stream:
 #   understand — silent JSON extraction (the "thinking" step; unstreamable)
 #   respond    — pure prose written for the owner (streamed token-by-token)
@@ -27,6 +30,7 @@ REQUIRED_BRIEF_FIELDS = [
 
 UNDERSTAND_SYSTEM = f"""You extract structured facts from a conversation between
 a website copilot and a business owner. Fields: {", ".join(REQUIRED_BRIEF_FIELDS)}.
+Also capture when mentioned (never required): {", ".join(OPTIONAL_BRIEF_FIELDS)}.
 
 Respond with ONLY JSON: {{"brief": {{...every field learned so far...}},
 "complete": true/false,
@@ -95,9 +99,17 @@ website. Respond with ONLY JSON:
 {"site_name": str,
  "theme": {
    "mood": str,
-   "primary_color": "#RRGGBB hex chosen to fit THIS brand's industry and tone —
-    e.g. warm terracotta for a bakery, deep espresso for a coffee bar, calm sage
-    for a yoga studio. Never a generic default blue.",
+   "primary_color": "#RRGGBB accent chosen from THIS brand's world — never a
+    generic default blue, never the AI-default cream/terracotta or
+    black/acid-green combos unless the brand truly demands them",
+   "palette": {
+     "background": "#RRGGBB page background — usually near-white, tinted
+      toward the brand's world (warm for food, cool for wellness)",
+     "surface": "#RRGGBB cards/header tint, a step off the background",
+     "ink": "#RRGGBB text color — near-black, tinted to match"
+   },
+   "radius": "corner rounding in px as a number: 0 (sharp, editorial) to
+    18 (soft, friendly) — pick to match the brand personality",
    "layout": "pick the ONE that fits the brand personality:
      classic — trustworthy, established (framed hero image, generous sections);
      split   — editorial, boutique (image beside the opening text, magazine feel);
@@ -115,9 +127,13 @@ website. Respond with ONLY JSON:
 
 def plan(state: AgentState) -> dict:
     model = chat_model(INTERVIEW_MODEL, temperature=0.5)
-    result = model.invoke(
-        [SystemMessage(PLAN_SYSTEM), SystemMessage(f"Brief: {state['brief']}")]
-    )
+    # the planner designs WITH the design-craft knowledge, not from vibes
+    craft = _retrieve_guidelines(state["brief"], topic="design")
+    messages = [SystemMessage(PLAN_SYSTEM)]
+    if craft:
+        messages.append(SystemMessage(f"Design craft to apply:\n{craft}"))
+    messages.append(SystemMessage(f"Brief: {state['brief']}"))
+    result = model.invoke(messages)
     spec = extract_json(result.content)
     return {"spec": spec, "phase": "planning"}
 
@@ -151,26 +167,38 @@ copy for ONE page as clean Markdown that renders directly as the website:
 
 - Start with # (the page's hero headline), then one bold tagline line.
 - Then ## sections with real content: short paragraphs, bullet lists where natural.
-- Calls to action are markdown links like [Order Now](#contact) — they render
-  as buttons.
+- Calls to action are markdown links that render as buttons. They must point
+  ONLY at pages that exist in this site's plan, using the exact path —
+  e.g. [Book a Class](/contact) or [See the Menu](/menu). NEVER link to
+  #anchors, external URLs, or pages that don't exist. Never invent forms.
+- The contact page must be genuinely usable: if a phone number is in the brief,
+  include it as a tappable link like [Call us: +91 98xxx](tel:+9198xxx) and a
+  WhatsApp link [Message on WhatsApp](https://wa.me/9198xxx); if an email is
+  known, include [Email us](mailto:...). State expected response time.
 - NO placeholder notes, NO "(Visual: ...)" or photo descriptions, NO commentary
   about the page — output only what a visitor would read.
 Be specific to this business — never generic filler. Match the requested tone."""
 
 
-def _retrieve_guidelines(brief: dict) -> str:
-    """Pull proven copywriting knowledge from the RAG service — grounding
-    the writer in craft instead of vibes. Absent service = no guidelines,
+def _retrieve_guidelines(brief: dict, topic: str = "copy") -> str:
+    """Pull proven craft from the RAG service — grounding the planner and
+    writer in knowledge instead of vibes. Absent service = no guidelines,
     never a failed generation."""
     import os
 
     import requests
 
     url = os.environ.get("RAG_URL", "http://localhost:8002")
-    query = (
-        f"{brief.get('business_type', '')} website copy, "
-        f"{brief.get('tone', '')} tone, headlines and page structure"
-    )
+    if topic == "design":
+        query = (
+            f"{brief.get('business_type', '')} {brief.get('tone', '')} website "
+            "design palette typography hero signature motion"
+        )
+    else:
+        query = (
+            f"{brief.get('business_type', '')} website copy, "
+            f"{brief.get('tone', '')} tone, headlines and page structure"
+        )
     try:
         r = requests.post(f"{url}/rag/search", json={"query": query, "k": 3}, timeout=6)
         r.raise_for_status()

@@ -6,10 +6,31 @@ deploy_site will publish the very same documents to Firebase Hosting —
 one renderer, zero drift between preview and production.
 """
 
+import re
 from datetime import datetime, timezone
 from string import Template
 
 import markdown as md
+
+
+def _repair_links(body: str, page_paths: list[str], path: str, mode: str) -> str:
+    """No dead buttons, ever. Anchor links (#contact) become real page
+    links when a matching page exists; links to nonexistent pages fall
+    back to the contact page (or home). Live pages use /path/ urls;
+    preview keeps bare paths for postMessage interception."""
+
+    def fix(match: re.Match) -> str:
+        href = match.group(1)
+        if href.startswith(("http", "mailto:", "tel:")):
+            return match.group(0)
+        target = "/" + href.lstrip("#/").split("/")[0] if href not in ("", "/") else "/"
+        if target not in page_paths:
+            target = "/contact" if "/contact" in page_paths else "/"
+        if mode == "live":
+            target = target if target == "/" else f"{target}/"
+        return f'href="{target}"'
+
+    return re.sub(r'href="([^"]*)"', fix, body)
 
 PAGE = Template("""<!doctype html>
 <html lang="en">
@@ -20,42 +41,45 @@ PAGE = Template("""<!doctype html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?$fonts_query&display=swap" rel="stylesheet">
 <style>
-  :root { --accent: $accent; }
+  :root {
+    --accent: $accent; --bg: $bg; --surface: $surface; --ink: $ink;
+    --radius: ${radius}px;
+  }
   * { box-sizing: border-box; margin: 0; }
-  body { font-family: "$body_font", system-ui, sans-serif; color: #222; background: #fff; line-height: 1.7; }
+  body { font-family: "$body_font", system-ui, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.7; }
   header {
-    position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,0.92);
-    backdrop-filter: blur(8px); border-bottom: 1px solid #eee;
+    position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: blur(8px); border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
     display: flex; align-items: center; justify-content: space-between;
     padding: 16px clamp(20px, 6vw, 56px);
   }
   .brand { font-family: "$head_font", serif; font-weight: 700; font-size: 1.15rem; color: var(--accent); }
   nav { display: flex; gap: 22px; flex-wrap: wrap; }
-  nav a { color: #444; text-decoration: none; font-size: 0.85rem; padding-bottom: 2px; border-bottom: 2px solid transparent; }
+  nav a { color: color-mix(in srgb, var(--ink) 78%, transparent); text-decoration: none; font-size: 0.85rem; padding-bottom: 2px; border-bottom: 2px solid transparent; }
   nav a:hover { color: var(--accent); }
   nav a.on { color: var(--accent); border-bottom-color: var(--accent); }
   main { max-width: 860px; margin: 0 auto; padding: 40px clamp(20px, 5vw, 40px) 80px; }
-  .hero-img { background: #f3f3f3; overflow: hidden; }
+  .hero-img { background: var(--surface); overflow: hidden; }
   .hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 $layout_css
   h1, h2, h3 { font-family: "$head_font", serif; line-height: 1.12; }
   h1 { font-size: clamp(2.2rem, 5.5vw, 3.4rem); letter-spacing: -0.015em; margin: 0.3em 0; }
-  h1 + p strong { font-size: 1.15rem; color: #555; font-weight: 600; }
+  h1 + p strong { font-size: 1.15rem; opacity: 0.72; font-weight: 600; }
   h2 { font-size: 1.7rem; color: var(--accent); margin: 2.2em 0 0.5em; }
   h3 { font-size: 1.15rem; margin: 1.5em 0 0.4em; }
   p { margin: 0.8em 0; }
   main a {
     display: inline-block; margin: 6px 10px 6px 0; padding: 11px 24px;
     background: var(--accent); color: #fff; text-decoration: none;
-    border-radius: 8px; font-weight: 600; font-size: 0.9rem;
+    border-radius: var(--radius); font-weight: 600; font-size: 0.9rem;
     transition: filter .15s ease, transform .12s ease;
   }
   main a:hover { filter: brightness(1.1); transform: translateY(-1px); }
   ul, ol { padding-left: 24px; margin: 0.8em 0; }
   li { margin-bottom: 6px; }
-  blockquote { border-left: 3px solid var(--accent); background: #fafafa; padding: 14px 20px; margin: 1.2em 0; border-radius: 0 8px 8px 0; }
-  hr { border: none; border-top: 1px solid #eee; margin: 2.5em 0; }
-  footer { border-top: 1px solid #eee; padding: 28px; text-align: center; font-size: 0.8rem; color: #888; }
+  blockquote { border-left: 3px solid var(--accent); background: var(--surface); padding: 14px 20px; margin: 1.2em 0; border-radius: 0 8px 8px 0; }
+  hr { border: none; border-top: 1px solid color-mix(in srgb, var(--ink) 12%, transparent); margin: 2.5em 0; }
+  footer { border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); padding: 28px; text-align: center; font-size: 0.8rem; color: #888; }
 </style>
 </head>
 <body>
@@ -104,10 +128,10 @@ LAYOUT_CSS = {
 
 
 PREVIEW_NAV_SCRIPT = """<script>
-  document.querySelectorAll("nav a").forEach(function (a) {
+  document.querySelectorAll('nav a, main a[href^="/"]').forEach(function (a) {
     a.addEventListener("click", function (e) {
       e.preventDefault();
-      parent.postMessage({ sfNav: a.dataset.path }, "*");
+      parent.postMessage({ sfNav: a.dataset.path || a.getAttribute("href") }, "*");
     });
   });
 </script>"""
@@ -149,15 +173,24 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
         )
     any_photos = any(p.get("image") for p in page_list)
 
+    palette = theme.get("palette") or {}
+    body_html = _repair_links(
+        md.markdown(pages.get(path, ""), extensions=["extra"]),
+        [p["path"] for p in page_list], path, mode,
+    )
     return PAGE.substitute(
         title=title,
         fonts_query=fonts_query,
         accent=theme.get("primary_color") or "#333",
+        bg=palette.get("background") or "#ffffff",
+        surface=palette.get("surface") or "#f6f6f4",
+        ink=palette.get("ink") or "#222222",
+        radius=int(theme.get("radius") or 8),
         head_font=head_font,
         body_font=body_font,
         site_name=site_name,
         nav=nav,
-        body=md.markdown(pages.get(path, ""), extensions=["extra"]),
+        body=body_html,
         year=datetime.now(timezone.utc).year,
         nav_script="" if mode == "live" else PREVIEW_NAV_SCRIPT,
         hero=hero,
