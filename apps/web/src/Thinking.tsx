@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { IconExpand, IconX } from "./icons";
+import { IconChevronSmall, IconExpand, IconX } from "./icons";
 
 export type ThinkBlock = { node: string; label: string; text: string };
 
@@ -23,9 +23,15 @@ export default function Thinking({
     if (!userToggled) setOpen(streaming);
   }, [streaming, userToggled]);
 
-  // keep the live feed scrolled to the newest thought
+  // follow the newest thought ONLY while the reader is at the bottom —
+  // scrolling up to read pauses the auto-follow instead of fighting it
+  const stick = useRef(true);
+  function onBodyScroll() {
+    const el = bodyRef.current;
+    if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }
   useEffect(() => {
-    if (open && streaming) {
+    if (open && streaming && stick.current) {
       bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
     }
   }, [blocks, open, streaming]);
@@ -61,7 +67,9 @@ export default function Thinking({
             setOpen((o) => !o);
           }}
         >
-          <span className="think-chev">{open ? "▾" : "▸"}</span>
+          <span className={open ? "think-chev open" : "think-chev"}>
+            <IconChevronSmall />
+          </span>
           <span className={streaming ? "shimmer" : ""}>
             {streaming ? `${current.label}…` : "Thought process"}
           </span>
@@ -75,7 +83,7 @@ export default function Thinking({
         </button>
       </div>
       {open && (
-        <div className="think-body" ref={bodyRef}>
+        <div className="think-body" ref={bodyRef} onScroll={onBodyScroll}>
           {sections}
         </div>
       )}

@@ -3,6 +3,7 @@
 import {
   ArrowUp,
   ChevronDown,
+  ChevronRight,
   Globe,
   LogOut,
   Maximize2,
@@ -25,3 +26,4 @@ export const IconGlobe = () => <Globe size={17} strokeWidth={1.9} />;
 export const IconArrowUp = () => <ArrowUp size={18} strokeWidth={2.4} />;
 export const IconStop = () => <Square size={15} strokeWidth={2} fill="currentColor" />;
 export const IconChevronDown = () => <ChevronDown size={28} strokeWidth={2.6} />;
+export const IconChevronSmall = () => <ChevronRight size={13} strokeWidth={2.2} />;

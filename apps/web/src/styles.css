@@ -366,7 +366,12 @@ button.primary:disabled { opacity: 0.45; }
 .think-expand { width: 24px; height: 24px; opacity: 0; }
 .think:hover .think-expand { opacity: 0.5; }
 .think-expand:hover { opacity: 1 !important; }
-.think-chev { font-size: 0.6rem; width: 10px; opacity: 0.7; }
+.think-chev {
+  display: inline-flex; opacity: 0.7;
+  transition: transform 0.15s var(--ease);
+}
+.think-chev.open { transform: rotate(90deg); }
+.think-chev svg { display: block; }
 .shimmer {
   background: linear-gradient(
     90deg,
