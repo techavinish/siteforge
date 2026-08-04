@@ -89,6 +89,7 @@ export default function Sidebar({
       </div>
 
       <div className="chat-list">
+        {chats.length > 0 && <span className="side-label">Recent</span>}
         {chats.map((c) => (
           <div key={c.thread_id} className={c.thread_id === active ? "chat-row active" : "chat-row"}>
             {editing === c.thread_id ? (

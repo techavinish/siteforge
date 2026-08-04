@@ -157,13 +157,21 @@ button.primary:disabled { opacity: 0.45; }
   box-shadow: 0 4px 16px rgba(232, 93, 31, 0.35);
 }
 .new-chat:active { transform: none; box-shadow: none; }
-.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 0 8px; }
+.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 0 8px 8px; }
+.side-label {
+  font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.12em;
+  text-transform: uppercase; opacity: 0.45; padding: 10px 12px 6px;
+}
 .chat-row {
-  display: flex; align-items: center; border-radius: 8px;
+  position: relative; display: flex; align-items: center; border-radius: 8px;
   transition: background 0.15s ease;
 }
 .chat-row:hover { background: rgba(127,127,127,0.12); }
 .chat-row.active { background: var(--accent-soft); }
+.chat-row.active::before {
+  content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px;
+  width: 3px; border-radius: 2px; background: var(--accent);
+}
 .chat-item {
   flex: 1; text-align: left; border: none; background: none;
   padding: 9px 4px 9px 10px; min-width: 0;
@@ -342,35 +350,63 @@ button.primary:disabled { opacity: 0.45; }
 /* agent turn = optional thinking block + answer + optional artifact card */
 .agent-turn { display: flex; flex-direction: column; gap: 10px; }
 
-/* thinking block (claude-style) */
-.think { font-size: 0.75rem; }
-.think-head {
-  display: inline-flex; align-items: center; gap: 8px;
-  border: none; background: none; padding: 4px 6px; margin-left: -6px;
-  font: inherit; color: var(--ink); opacity: 0.55; border-radius: 6px;
-  cursor: pointer; transition: opacity 0.15s ease, background 0.15s ease;
+/* thinking block — a quiet card that can expand to a full reading view */
+.think {
+  font-size: 0.75rem;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+  overflow: hidden;
+  transition: border-color 0.18s var(--ease);
 }
-.think-head:hover { opacity: 0.9; background: rgba(127,127,127,0.08); }
+.think.live { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.think-bar { display: flex; align-items: center; padding: 2px 6px 2px 4px; }
+.think-head {
+  flex: 1; display: inline-flex; align-items: center; gap: 8px;
+  border: none; background: none; padding: 8px 6px; text-align: left;
+  font: inherit; font-size: 0.75rem; color: var(--ink); opacity: 0.65;
+  cursor: pointer; transition: opacity 0.15s ease;
+}
+.think-head:hover { opacity: 1; }
+.think-expand { width: 26px; height: 26px; opacity: 0; }
+.think:hover .think-expand { opacity: 0.55; }
+.think-expand:hover { opacity: 1 !important; }
 .think-dot {
   width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+  flex: none;
 }
 .think.live .think-dot { animation: bounce 1.2s ease-in-out infinite; }
 .think-chev { font-size: 0.65rem; }
 .think-body {
-  margin: 6px 0 0 3px; padding: 8px 0 8px 14px;
-  border-left: 2px solid var(--line);
-  max-height: 200px; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 12px;
+  margin: 0 10px; padding: 10px 4px 12px;
+  border-top: 1px solid var(--line);
+  max-height: 210px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 14px;
 }
 .think-section .think-label {
-  display: block; font-size: 0.66rem; letter-spacing: 0.06em;
-  text-transform: uppercase; color: var(--accent); opacity: 0.8;
-  margin-bottom: 4px;
+  display: block; font-family: var(--font-mono); font-size: 0.64rem;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent); opacity: 0.85; margin-bottom: 5px;
 }
 .think-section pre {
   margin: 0; white-space: pre-wrap; word-break: break-word;
-  font: inherit; font-size: 0.72rem; line-height: 1.55; opacity: 0.6;
+  font: inherit; font-size: 0.73rem; line-height: 1.6; opacity: 0.62;
 }
+/* full-screen reading view */
+.think-modal {
+  width: min(780px, calc(100vw - 40px));
+  max-height: 82vh; display: flex; flex-direction: column;
+  padding: 0; overflow: hidden;
+}
+.think-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px; border-bottom: 1px solid var(--line);
+}
+.think-modal-head h3 { margin: 0; font-size: 1rem; }
+.think-modal-body {
+  overflow-y: auto; padding: 18px 22px 24px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.think-modal-body .think-section pre { font-size: 0.82rem; opacity: 0.75; }
 
 /* quick replies */
 .suggest-row {
@@ -395,7 +431,7 @@ button.primary:disabled { opacity: 0.45; }
   padding: 14px 4px; border-bottom: 1px solid var(--line);
 }
 .bar .muted { margin-left: auto; }
-.chat { flex: 1; overflow-y: auto; padding: 18px 4px; display: flex; flex-direction: column; gap: 10px; }
+.chat { flex: 1; overflow-y: auto; padding: 20px 4px; display: flex; flex-direction: column; gap: 18px; }
 /* long chats & thread lists: browser skips rendering off-screen items
    (native virtualization via content-visibility) */
 .chat > .agent-turn, .chat > .bubble, .chat-list .chat-row {
@@ -452,7 +488,8 @@ button.primary:disabled { opacity: 0.45; }
 .bubble.user {
   align-self: flex-end;
   background: var(--accent-soft); color: var(--ink);
-  border: 1px solid transparent;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 16px 16px 4px 16px; /* speech tail toward the sender */
 }
 .bubble.agent { align-self: flex-start; background: rgba(127,127,127,0.12); }
 .bubble.working { opacity: 0.7; font-style: italic; animation: pulse 1.2s ease-in-out infinite; }

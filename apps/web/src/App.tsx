@@ -280,9 +280,9 @@ export default function App() {
       if (u) {
         const list = await loadChats(u);
         const fromUrl = hashThread();
+        // deep link restores its chat; otherwise ALWAYS start on the
+        // welcome screen — never dump the user into an old conversation
         if (fromUrl && list.some((c) => c.thread_id === fromUrl)) openThread(fromUrl);
-        // an explicit "#/" means the user was on the welcome screen — honor it
-        else if (location.hash !== "#/" && list.length) openThread(list[0].thread_id);
       }
     });
   }, [loadChats, openThread]);
