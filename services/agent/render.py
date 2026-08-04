@@ -35,11 +35,9 @@ PAGE = Template("""<!doctype html>
   nav a:hover { color: var(--accent); }
   nav a.on { color: var(--accent); border-bottom-color: var(--accent); }
   main { max-width: 860px; margin: 0 auto; padding: 40px clamp(20px, 5vw, 40px) 80px; }
-  .hero-img {
-    margin: 0 0 36px; border-radius: 16px; overflow: hidden;
-    aspect-ratio: 21 / 9; background: #f3f3f3;
-  }
+  .hero-img { background: #f3f3f3; overflow: hidden; }
   .hero-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+$layout_css
   h1, h2, h3 { font-family: "$head_font", serif; line-height: 1.12; }
   h1 { font-size: clamp(2.2rem, 5.5vw, 3.4rem); letter-spacing: -0.015em; margin: 0.3em 0; }
   h1 + p strong { font-size: 1.15rem; color: #555; font-weight: 600; }
@@ -67,6 +65,43 @@ PAGE = Template("""<!doctype html>
 $nav_script
 </body>
 </html>""")
+
+# Four layout personalities — the plan node picks one per brand, so sites
+# stop being structural twins. Same markdown, different architecture.
+LAYOUT_CSS = {
+    "classic": """
+  .hero-img { margin: 0 0 36px; border-radius: 16px; aspect-ratio: 21 / 9; }""",
+    "split": """
+  .hero-img {
+    float: right; width: 44%; aspect-ratio: 4 / 5;
+    border-radius: 14px; margin: 0 0 20px 32px;
+  }
+  @media (max-width: 720px) { .hero-img { float: none; width: 100%; aspect-ratio: 16/10; margin: 0 0 24px; } }
+  h1 { max-width: 12ch; }""",
+    "minimal": """
+  main { max-width: 640px; padding-top: 72px; }
+  body { line-height: 1.9; }
+  .hero-img { margin: 40px auto; width: 82%; aspect-ratio: 16 / 10; border-radius: 4px; }
+  h1 { font-size: clamp(1.9rem, 4.5vw, 2.6rem); font-weight: 500; }
+  h2 { font-size: 0.95rem; letter-spacing: 0.14em; text-transform: uppercase; margin-top: 3em; }
+  main a { background: none; color: var(--accent); border: 1.5px solid var(--accent); padding: 10px 22px; }
+  hr { margin: 3.5em auto; width: 64px; }""",
+    "bold": """
+  .hero-img {
+    margin: 0 calc(50% - 50vw) 44px; width: 100vw; max-width: 100vw;
+    aspect-ratio: 16 / 6; border-radius: 0;
+  }
+  h1 {
+    font-size: clamp(2.6rem, 7vw, 4.2rem); text-transform: uppercase;
+    letter-spacing: -0.02em; line-height: 0.98;
+  }
+  h2 {
+    display: inline-block; background: var(--accent); color: #fff;
+    padding: 4px 14px; font-size: 1.2rem; border-radius: 4px;
+  }
+  main a { padding: 14px 32px; font-size: 1rem; border-radius: 4px; }""",
+}
+
 
 PREVIEW_NAV_SCRIPT = """<script>
   document.querySelectorAll("nav a").forEach(function (a) {
@@ -127,4 +162,5 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
         nav_script="" if mode == "live" else PREVIEW_NAV_SCRIPT,
         hero=hero,
         photo_credit=" · Photos via Pexels" if any_photos else "",
+        layout_css=LAYOUT_CSS.get(theme.get("layout", "classic"), LAYOUT_CSS["classic"]),
     )

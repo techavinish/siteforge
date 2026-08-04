@@ -80,6 +80,11 @@ website. Respond with ONLY JSON:
    "primary_color": "#RRGGBB hex chosen to fit THIS brand's industry and tone —
     e.g. warm terracotta for a bakery, deep espresso for a coffee bar, calm sage
     for a yoga studio. Never a generic default blue.",
+   "layout": "pick the ONE that fits the brand personality:
+     classic — trustworthy, established (framed hero image, generous sections);
+     split   — editorial, boutique (image beside the opening text, magazine feel);
+     minimal — premium, calm (narrow measure, airy space, understated image);
+     bold    — loud, young, energetic (full-bleed hero, oversized headline)",
    "fonts": {
      "heading": "pick ONE that fits the brand: Playfair Display | DM Serif Display |
       Lora | Sora | Space Grotesk | Poppins | Montserrat | Cormorant Garamond",
