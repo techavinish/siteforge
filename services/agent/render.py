@@ -80,10 +80,24 @@ $layout_css
   blockquote { border-left: 3px solid var(--accent); background: var(--surface); padding: 14px 20px; margin: 1.2em 0; border-radius: 0 8px 8px 0; }
   hr { border: none; border-top: 1px solid color-mix(in srgb, var(--ink) 12%, transparent); margin: 2.5em 0; }
   footer { border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); padding: 28px; text-align: center; font-size: 0.8rem; color: #888; }
+  .mark {
+    display: inline-grid; place-items: center; width: 30px; height: 30px;
+    margin-right: 10px; border-radius: var(--radius);
+    background: var(--accent); color: #fff;
+    font-size: 0.95rem; vertical-align: -8px;
+  }
+  /* one orchestrated moment: the page settles in — then stillness */
+  main { animation: settle 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @keyframes settle { from { opacity: 0; transform: translateY(12px); } }
+  /* quality floor: keyboard focus visible, reduced motion respected */
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
-<header><span class="brand">$site_name</span><nav>$nav</nav></header>
+<header><span class="brand"><span class="mark">$initial</span>$site_name</span><nav>$nav</nav></header>
 <main>$hero$body</main>
 <footer>© $year $site_name · Built with SiteForge$photo_credit</footer>
 $nav_script
@@ -180,6 +194,7 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
     )
     return PAGE.substitute(
         title=title,
+        initial=(site_name.strip()[:1] or "•").upper(),
         fonts_query=fonts_query,
         accent=theme.get("primary_color") or "#333",
         bg=palette.get("background") or "#ffffff",
