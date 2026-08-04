@@ -35,7 +35,8 @@ def _headers() -> dict:
 
 
 def _slug(name: str) -> str:
-    base = re.sub(r"[^a-z0-9-]", "", name.lower().replace(" ", "-"))[:20].strip("-")
+    base = re.sub(r"[^a-z0-9-]", "", name.lower().replace(" ", "-"))
+    base = re.sub(r"-+", "-", base)[:20].strip("-")  # 'ink--iron' breaks hosting
     return f"sf-{base or 'site'}-{secrets.token_hex(2)}"
 
 
