@@ -39,6 +39,21 @@
 - [x] DeepEval + Ragas scripts (`scripts/evals/`) — need paid OpenRouter credits to execute
 - Deliberately local (documented): Temporal server + worker + eval service — moving them cloud-side requires Temporal Cloud + ClickHouse Cloud; the seams are ready
 
+## Bookings + logo wave (2026-08-12) — client-controlled features
+- Brief gains required `booking` field (tracker | email | none) — the agent
+  OFFERS, the client DECIDES; email mode requires the address (computed gate).
+- Tracker: published sites carry a working booking form (honeypot, services
+  dropdown from the owner's offerings) → public `/agent/book` (IP+site rate
+  limits) → owner's Bookings dashboard beside the preview (counts, one-tap
+  triage new→contacted→closed, badge on the tab).
+- Logo upload: composer paperclip → Postgres assets → preview via
+  `/agent/asset/...`, published as `/logo.*` with mime-matched extension.
+- RAG: booking-conversion + forms-ux corpus (49 chunks total); the rag
+  service self-syncs its baked-in corpus at startup (sha256 per source) —
+  deploying corpus IS the reingest.
+- Follow-ups: owner notification on new booking (email/WhatsApp); bookings
+  in medallion (bronze events); Temporal worker still uses sequential write().
+
 ## Deep-audit backlog (2026-08-11) — P1/P2s deferred after the P0 wave
 
 From three parallel audits (UI/UX, agent/LangGraph, RAG). P0s all landed; these remain, in value order:
