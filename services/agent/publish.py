@@ -17,13 +17,52 @@ import re
 import secrets
 
 import google.auth
+import psycopg
 import requests
 from google.auth.transport.requests import Request as GRequest
 
+from config import DATABASE_URL
 from render import build_site_html
 
 PROJECT = os.environ.get("GCP_PROJECT", "siteforge-dev-3977")
 API = "https://firebasehosting.googleapis.com/v1beta1"
+
+# where published sites reach the agent (their booking forms post here)
+AGENT_PUBLIC_URL = os.environ.get(
+    "AGENT_PUBLIC_URL", "https://agent-247435823944.asia-south1.run.app"
+)
+
+LOGO_MIMES = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/svg+xml": ".svg",
+    "image/webp": ".webp",
+}
+
+
+def logo_row(thread_id: str):
+    with psycopg.connect(DATABASE_URL) as conn:
+        return conn.execute(
+            "SELECT mime, data FROM assets WHERE thread_id=%s AND kind='logo'",
+            (thread_id,),
+        ).fetchone()
+
+
+def logo_path(mime: str) -> str:
+    """Hosting infers content-type from the extension — it must match."""
+    return f"/logo{LOGO_MIMES.get(mime, '.png')}"
+
+
+def decorate_spec(spec: dict, thread_id: str, live: bool) -> dict:
+    """Renderer inputs that live OUTSIDE the graph state: the booking key
+    (this thread), the uploaded logo, and where the live form posts."""
+    spec = dict(spec)
+    spec["booking_key"] = thread_id
+    spec["agent_base"] = AGENT_PUBLIC_URL if live else ""
+    logo = logo_row(thread_id)
+    if logo:
+        spec["logo_url"] = logo_path(logo[0]) if live else f"/agent/asset/{thread_id}/logo"
+    return spec
 
 
 def _headers() -> dict:
@@ -40,8 +79,14 @@ def _slug(name: str) -> str:
     return f"sf-{base or 'site'}-{secrets.token_hex(2)}"
 
 
-def publish_site(spec: dict, pages: dict, site_id: str | None = None) -> tuple[str, str]:
-    """Renders every page in live mode and releases it. Returns (site_id, url)."""
+def publish_site(
+    spec: dict,
+    pages: dict,
+    site_id: str | None = None,
+    extra_files: dict[str, bytes] | None = None,
+) -> tuple[str, str]:
+    """Renders every page in live mode and releases it. extra_files are
+    published verbatim (the owner's /logo.png). Returns (site_id, url)."""
     h = _headers()
 
     if not site_id:
@@ -63,6 +108,8 @@ def publish_site(spec: dict, pages: dict, site_id: str | None = None) -> tuple[s
         html = build_site_html(spec, pages, path, mode="live").encode()
         fname = "/index.html" if path == "/" else f"{path}/index.html"
         files[fname] = gzip.compress(html, 9)
+    for fname, body in (extra_files or {}).items():
+        files[fname] = gzip.compress(body, 9)  # hosting expects gzip uploads
     hashes = {name: hashlib.sha256(body).hexdigest() for name, body in files.items()}
 
     version = requests.post(f"{API}/{site}/versions", headers=h, timeout=30).json()["name"]

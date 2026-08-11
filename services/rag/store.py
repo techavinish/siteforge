@@ -64,6 +64,31 @@ def setup() -> None:
         # flavour: every chunk carries its topic (design/copy/platinum) so
         # retrieval can be scoped to what the query is actually about
         conn.execute("ALTER TABLE rag_chunks ADD COLUMN IF NOT EXISTS topic text NOT NULL DEFAULT 'copy'")
+        # per-source content hash — startup sync reingests ONLY what changed,
+        # so deploying new corpus IS the reingest and cold starts stay cheap
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS rag_sources (
+                source text PRIMARY KEY,
+                hash   text NOT NULL
+            )""")
+        conn.commit()
+
+
+def stored_hash(source: str) -> str | None:
+    with psycopg.connect(DATABASE_URL) as conn:
+        row = conn.execute(
+            "SELECT hash FROM rag_sources WHERE source=%s", (source,)
+        ).fetchone()
+    return row[0] if row else None
+
+
+def record_hash(source: str, h: str) -> None:
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute(
+            "INSERT INTO rag_sources (source, hash) VALUES (%s,%s) "
+            "ON CONFLICT (source) DO UPDATE SET hash=EXCLUDED.hash",
+            (source, h),
+        )
         conn.commit()
 
 

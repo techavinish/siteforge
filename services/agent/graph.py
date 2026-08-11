@@ -36,6 +36,7 @@ def _page_sends(state: AgentState, only_paths: set[str] | None = None,
             "brief": state["brief"],
             "spec": {"site_name": state["spec"].get("site_name"),
                      "theme": {"mood": state["spec"].get("theme", {}).get("mood", "")},
+                     "contact": state["spec"].get("contact", {}),
                      "pages": state["spec"]["pages"]},
             "feedback": (feedback or {}).get(path, ""),
             "existing": state.get("pages", {}).get(path, "")

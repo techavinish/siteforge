@@ -18,10 +18,15 @@ REQUIRED_BRIEF_FIELDS = [
     "offerings",
     "target_customers",
     "tone",
+    # how the owner wants to receive enquiries — THEIR call, never assumed:
+    #   tracker — SiteForge booking form + a bookings dashboard in the app
+    #   email   — a simple contact form that emails them
+    #   none    — no form, just contact details on the page
+    "booking",
 ]
 
 # captured when mentioned, never demanded — they make CTAs genuinely work
-OPTIONAL_BRIEF_FIELDS = ["phone", "email"]
+OPTIONAL_BRIEF_FIELDS = ["phone", "email", "has_logo"]
 
 # The interview is SPLIT into two nodes so the user-visible half can stream:
 #   understand — silent JSON extraction (the "thinking" step; unstreamable)
@@ -32,11 +37,22 @@ UNDERSTAND_SYSTEM = f"""You extract structured facts from a conversation between
 a website copilot and a business owner. Fields: {", ".join(REQUIRED_BRIEF_FIELDS)}.
 Also capture when mentioned (never required): {", ".join(OPTIONAL_BRIEF_FIELDS)}.
 
+"booking" is how the owner wants enquiries handled — map their words:
+  wants bookings/appointments tracked, a dashboard, "use your booking form",
+  "manage bookings here" → "tracker"
+  wants messages sent to their email / "just email me" / gives an email for
+  the form → "email"
+  no form, "just show my phone number" → "none"
+Only set it when the owner has actually chosen. "has_logo": true when they
+say they uploaded or attached their logo.
+
 Respond with ONLY JSON: {{"brief": {{...every field learned so far...}},
 "complete": true/false,
 "edit_target": "when the site ALREADY EXISTS and the latest message asks for a
  change, classify it: images (photo/picture changes) | copy (text/wording) |
- design (colors/fonts/layout/pages) | none (just chatting). Otherwise none."}}
+ design (colors/fonts/layout/pages, adding/removing pages, switching the
+ booking/contact form type, using or replacing an uploaded logo) |
+ none (just chatting). Otherwise none."}}
 complete=true only when every field has a real value."""
 
 
@@ -62,11 +78,15 @@ def understand(state: AgentState) -> dict:
     # fields, and a partial extraction must not erase earlier answers
     extracted = data.get("brief") or {}
     merged = {**state.get("brief", {}), **{k: v for k, v in extracted.items() if v}}
+    if merged.get("booking") not in ("tracker", "email", "none", None, ""):
+        merged["booking"] = ""  # model drift never fabricates a mode
     return {
         "brief": merged,
         # completeness is ground truth we can compute — never outsource a
-        # boolean the graph routes on to the model
-        "brief_complete": all(merged.get(f) for f in REQUIRED_BRIEF_FIELDS),
+        # boolean the graph routes on to the model. Email-mode needs the
+        # address the form will deliver to.
+        "brief_complete": all(merged.get(f) for f in REQUIRED_BRIEF_FIELDS)
+        and (merged.get("booking") != "email" or bool(merged.get("email"))),
         "edit_target": (data.get("edit_target") or "none") if site_exists else "none",
         "edit_request": last_user if site_exists else "",
         "revisions": 0,  # the quality loop is bounded PER RUN, not per thread
@@ -76,13 +96,26 @@ def understand(state: AgentState) -> dict:
 
 RESPOND_SYSTEM = """You are SiteForge, a friendly copilot that builds business
 websites. Write your next message to the owner as PLAIN PROSE (no JSON, no markdown
-headers). If the brief is incomplete: warmly ask for at most TWO of the missing
-fields — and NEVER say "Building your draft now…" while anything is missing
-(that exact phrase triggers the build UI). If the brief is complete and no site exists yet: one-sentence summary of
+headers). The owner is in control: they decide the features, you offer the options.
+
+If the brief is incomplete: warmly ask for at most TWO of the missing fields —
+and NEVER say "Building your draft now…" while anything is missing (that exact
+phrase triggers the build UI).
+When "booking" is the missing field, offer the real choices in plain words:
+  1) SiteForge booking form — visitors book on the site and every booking
+     appears in their Bookings dashboard right here in SiteForge;
+  2) a simple contact form that emails them (ask for the email if unknown);
+  3) no form — just show their contact details.
+When asking about their business (not the booking question), also mention ONCE,
+casually, that they can upload their logo with the paperclip button if they
+have one. Never promise any feature beyond these.
+
+If the brief is complete and no site exists yet: one-sentence summary of
 what you'll build, ending exactly with: "Building your draft now…".
 If a site exists and the owner asked for a change: confirm the specific change in
 one sentence, ending exactly with: "Updating your site now…". Never re-describe
-the whole site for a small change."""
+the whole site for a small change. Any change is possible — copy, photos,
+colors, layout, pages, the logo, or switching how enquiries reach them."""
 
 
 def respond(state: AgentState) -> dict:
@@ -190,6 +223,21 @@ def plan(state: AgentState) -> dict:
     spec["contact"] = {
         k: state["brief"].get(k, "") for k in ("phone", "email", "location")
     }
+    # the form the site carries is the OWNER'S choice, resolved in code:
+    # tracker → SiteForge booking form feeding their dashboard;
+    # email → formsubmit form (needs their address); none → details only
+    booking = state["brief"].get("booking", "")
+    if booking not in ("tracker", "email", "none"):
+        booking = "email" if spec["contact"].get("email") else "none"
+    spec["contact"]["mode"] = booking
+    # offerings become the booking form's service choices (split in code,
+    # never by the model — a hallucinated service list helps nobody)
+    import re as _re
+
+    services = [
+        s.strip(" .") for s in _re.split(r"[,;/\n]|\band\b", state["brief"].get("offerings", ""))
+    ]
+    spec["services"] = [s for s in services if 2 < len(s) < 60][:8]
     return {"spec": spec, "phase": "planning"}
 
 
@@ -365,6 +413,14 @@ def write_page(payload: dict) -> dict:
         f"Page: {page['title']} ({page['path']}) — {page.get('purpose', '')}\n"
         f"Sections: {page.get('sections', [])}"
     )
+    mode = (spec.get("contact") or {}).get("mode", "")
+    if "contact" in page["path"] and mode in ("tracker", "email"):
+        what = "booking form" if mode == "tracker" else "contact form"
+        prompt += (
+            f"\nA working {what} is appended below your copy automatically — "
+            "end the page leading into it (e.g. 'Use the form below…'); "
+            "do NOT write your own form or a form-like list of fields."
+        )
     if payload.get("feedback"):
         prompt += f"\nA reviewer said about THIS page: {payload['feedback']}\nFix those issues."
     if payload.get("existing"):
@@ -415,4 +471,9 @@ def deliver(state: AgentState) -> dict:
             f"{len(pages)} pages: {', '.join(pages)}. "
             f"Reviewer score: {state['critique'].get('score', '?')}/10."
         )
+        if (spec.get("contact") or {}).get("mode") == "tracker":
+            summary += (
+                " Your site takes bookings — every booking will appear in the "
+                "**Bookings** tab next to the preview."
+            )
     return {"messages": [AIMessage(summary)], "phase": "done", "edit_target": "none"}

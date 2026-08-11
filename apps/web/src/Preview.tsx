@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { agentUrl, authFetch, idToken } from "./api";
-import { IconExpand, IconX } from "./icons";
+import { IconExpand, IconGlobeSm, IconInbox, IconX } from "./icons";
+import Bookings from "./Bookings";
 
 export type Draft = {
   phase?: string;
@@ -12,10 +13,12 @@ export type Draft = {
       fonts?: { heading?: string; body?: string };
     };
     pages?: { path: string; title: string }[];
+    contact?: { mode?: string };
   };
   pages?: Record<string, string>;
   score?: number;
   live_url?: string | null;
+  bookings?: { new: number; contacted: number; closed: number };
 };
 
 /** The canvas shows the agent-rendered website served by the backend
@@ -42,12 +45,27 @@ export default function Preview({
   const [frameToken, setFrameToken] = useState("");
   const [frameLoading, setFrameLoading] = useState(true);
   const [pubError, setPubError] = useState("");
+  const [tab, setTab] = useState<"site" | "bookings">("site");
+  const [newCount, setNewCount] = useState(draft.bookings?.new ?? 0);
+
+  // the Bookings tab exists once the client chose the tracker — or the
+  // moment real bookings exist, whatever they later switched to
+  const totalBookings =
+    (draft.bookings?.new ?? 0) + (draft.bookings?.contacted ?? 0) + (draft.bookings?.closed ?? 0);
+  const hasBookings = draft.spec?.contact?.mode === "tracker" || totalBookings > 0;
 
   // the iframe can't send headers — its src carries the ID token instead.
   // refreshed per navigation: firebase tokens expire hourly
   useEffect(() => {
     idToken().then(setFrameToken);
   }, [threadId, active]);
+
+  // switching conversations = a different business's workspace
+  useEffect(() => {
+    setTab("site");
+    setNewCount(draft.bookings?.new ?? 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId, draft.bookings?.new]);
 
   // a regeneration can remove the page being viewed — never 404 the frame
   useEffect(() => {
@@ -86,6 +104,19 @@ export default function Preview({
     <aside className="preview">
       <div className="preview-chrome">
         <span className="dot" /><span className="dot" /><span className="dot" />
+        {hasBookings && (
+          <div className="seg" role="tablist" aria-label="Workspace panel">
+            <button role="tab" aria-selected={tab === "site"}
+              className={tab === "site" ? "on" : ""} onClick={() => setTab("site")}>
+              <IconGlobeSm /> Website
+            </button>
+            <button role="tab" aria-selected={tab === "bookings"}
+              className={tab === "bookings" ? "on" : ""} onClick={() => setTab("bookings")}>
+              <IconInbox /> Bookings
+              {newCount > 0 && <span className="seg-badge">{newCount}</span>}
+            </button>
+          </div>
+        )}
         {liveUrl ? (
           <a className="preview-url live" href={liveUrl} target="_blank" rel="noreferrer">
             {liveUrl.replace("https://", "")}
@@ -114,20 +145,24 @@ export default function Preview({
       </div>
 
       {pubError && <div className="publish-toast" role="alert">{pubError}</div>}
-      <div className="frame-wrap">
-        {frameLoading && (
-          <div className="frame-skeleton"><span className="spinner" /></div>
-        )}
-        {frameToken && (
-          <iframe
-            className="site-frame"
-            title="Website preview"
-            sandbox="allow-scripts"
-            onLoad={() => setFrameLoading(false)}
-            src={agentUrl(`/agent/site/${threadId}?path=${encodeURIComponent(active)}&token=${encodeURIComponent(frameToken)}`)}
-          />
-        )}
-      </div>
+      {tab === "bookings" ? (
+        <Bookings threadId={threadId} onCounts={(c) => setNewCount(c.new)} />
+      ) : (
+        <div className="frame-wrap">
+          {frameLoading && (
+            <div className="frame-skeleton"><span className="spinner" /></div>
+          )}
+          {frameToken && (
+            <iframe
+              className="site-frame"
+              title="Website preview"
+              sandbox="allow-scripts"
+              onLoad={() => setFrameLoading(false)}
+              src={agentUrl(`/agent/site/${threadId}?path=${encodeURIComponent(active)}&token=${encodeURIComponent(frameToken)}`)}
+            />
+          )}
+        </div>
+      )}
     </aside>
   );
 }

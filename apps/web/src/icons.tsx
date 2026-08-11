@@ -5,11 +5,14 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  Inbox,
   RotateCcw,
+  RefreshCw,
   Globe,
   LogOut,
   Maximize2,
   PanelLeft,
+  Paperclip,
   Pencil,
   Plus,
   Search,
@@ -31,3 +34,7 @@ export const IconChevronDown = () => <ChevronDown size={28} strokeWidth={2.6} />
 export const IconChevronSmall = () => <ChevronRight size={13} strokeWidth={2.2} />;
 export const IconCopy = () => <Copy size={14} strokeWidth={1.9} />;
 export const IconRetry = () => <RotateCcw size={14} strokeWidth={1.9} />;
+export const IconClip = () => <Paperclip size={17} strokeWidth={1.9} />;
+export const IconInbox = () => <Inbox size={14} strokeWidth={1.9} />;
+export const IconGlobeSm = () => <Globe size={14} strokeWidth={1.9} />;
+export const IconRefresh = () => <RefreshCw size={14} strokeWidth={1.9} />;

@@ -751,3 +751,118 @@ button.primary:disabled { opacity: 0.45; }
 .msg-actions [data-tip]:focus-visible::after {
   bottom: auto; top: calc(100% + 8px);
 }
+
+/* ── workspace tabs: Website | Bookings ─────────────────────────── */
+.seg {
+  display: inline-flex; gap: 2px; margin-left: 10px; padding: 2px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+.seg button {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 0.72rem; font-weight: 600;
+  padding: 4px 10px; border: none; border-radius: 8px;
+  background: none; color: var(--ink); opacity: 0.6; cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.seg button:hover { opacity: 0.9; }
+.seg button.on { background: var(--well); opacity: 1; box-shadow: var(--shadow-1); }
+.seg button svg { display: block; }
+.seg-badge {
+  min-width: 17px; height: 17px; padding: 0 5px;
+  display: inline-grid; place-items: center;
+  font-size: 0.62rem; font-weight: 700; border-radius: 999px;
+  background: var(--accent); color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── the client's booking inbox ─────────────────────────────────── */
+.bookings {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px 20px;
+}
+.bk-head { display: flex; align-items: center; justify-content: space-between; }
+.bk-counts { display: flex; gap: 6px; }
+.bk-pill {
+  font-size: 0.7rem; font-weight: 600; padding: 4px 10px;
+  border-radius: 999px; border: 1px solid var(--line);
+  color: var(--ink); opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+.bk-pill.is-new {
+  background: var(--accent-soft); border-color: transparent;
+  color: var(--accent); opacity: 1;
+}
+.bk-pill.is-closed { opacity: 0.5; }
+.bk-list { display: flex; flex-direction: column; gap: 8px; }
+.bk-row {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 12px 14px; border: 1px solid var(--line);
+  border-radius: var(--r-card); background: var(--panel);
+}
+.bk-row.st-new { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.bk-row.st-closed { opacity: 0.6; }
+.bk-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bk-name { font-size: 0.88rem; }
+.bk-time { margin-left: auto; font-size: 0.7rem; flex: none; }
+.bk-status {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
+}
+.bk-status.st-new { background: var(--accent-soft); color: var(--accent); }
+.bk-status.st-contacted { background: rgba(27, 122, 95, 0.14); color: #1b7a5f; }
+@media (prefers-color-scheme: dark) { .bk-status.st-contacted { color: #4cc39a; } }
+.bk-status.st-closed { background: rgba(127,127,127,0.14); color: var(--ink); opacity: 0.7; }
+.bk-contact {
+  font-family: var(--font-mono); font-size: 0.75rem; opacity: 0.8;
+  user-select: all; /* one tap selects the whole phone/email */
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bk-service {
+  flex: none; font-size: 0.7rem; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid var(--line); opacity: 0.75;
+}
+.bk-msg {
+  margin: 2px 0 0; font-size: 0.82rem; line-height: 1.55; opacity: 0.8;
+  white-space: pre-wrap; word-break: break-word;
+}
+.bk-action {
+  align-self: flex-start; margin-top: 4px;
+  font: inherit; font-size: 0.74rem; font-weight: 600;
+  padding: 5px 12px; border-radius: var(--r-ctl);
+  border: 1px solid var(--line); background: none; color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.bk-action:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.bk-empty {
+  margin: auto; text-align: center; max-width: 32ch;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.bk-empty-ico {
+  display: grid; place-items: center; width: 44px; height: 44px;
+  border-radius: var(--r-card); background: var(--accent-soft); color: var(--accent);
+}
+.bk-empty p { margin: 0; font-size: 0.82rem; line-height: 1.6; }
+
+/* ── composer: staged logo attachment ───────────────────────────── */
+.composer { padding-left: 10px; }
+.composer .clip { flex: none; align-self: center; }
+.attach-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 7px;
+  max-width: 180px; padding: 4px 6px 4px 5px;
+  font-size: 0.72rem; font-weight: 600;
+  background: var(--well); border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  overflow: hidden; white-space: nowrap;
+}
+.attach-chip img {
+  width: 22px; height: 22px; object-fit: contain;
+  border-radius: 5px; background: #fff; flex: none;
+}
+.attach-chip button {
+  display: inline-flex; border: none; background: none; color: var(--ink);
+  opacity: 0.6; padding: 2px; cursor: pointer; border-radius: 5px;
+}
+.attach-chip button:hover { opacity: 1; color: var(--danger); }

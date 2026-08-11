@@ -19,6 +19,11 @@ if os.environ.get("SENTRY_DSN"):
 app = FastAPI(title="siteforge-rag")
 store.setup()
 
+# corpus ships inside the image; startup syncs whatever changed
+import ingest
+
+ingest.sync()
+
 
 class SearchIn(BaseModel):
     query: str

@@ -88,9 +88,22 @@ $layout_css
     border: 1.5px solid color-mix(in srgb, var(--ink) 18%, transparent);
     background: var(--bg); color: var(--ink);
   }
-  .contact-form input:focus, .contact-form textarea:focus {
+  .contact-form select {
+    font: inherit; padding: 11px 14px; border-radius: calc(var(--radius) * 0.7);
+    border: 1.5px solid color-mix(in srgb, var(--ink) 18%, transparent);
+    background: var(--bg); color: var(--ink);
+  }
+  .contact-form input:focus, .contact-form textarea:focus, .contact-form select:focus {
     outline: none; border-color: var(--accent);
   }
+  .contact-form button:disabled { opacity: 0.6; cursor: default; }
+  .form-note { font-size: 0.85rem; color: color-mix(in srgb, var(--ink) 75%, transparent); margin: 0; }
+  .form-note:empty { display: none; }
+  .form-done {
+    padding: 18px 20px; border-radius: var(--radius);
+    background: var(--surface); border: 1.5px solid var(--accent);
+  }
+  .hp { position: absolute; left: -5000px; }
   .contact-form button {
     font: inherit; font-weight: 600; padding: 12px; border: none;
     border-radius: var(--radius); background: var(--accent); color: #fff;
@@ -101,6 +114,10 @@ $layout_css
     margin-right: 10px; border-radius: var(--radius);
     background: var(--accent); color: #fff;
     font-size: 0.95rem; vertical-align: -8px;
+  }
+  .logo-img {
+    height: 32px; max-width: 150px; object-fit: contain;
+    margin-right: 10px; vertical-align: -9px; border-radius: 4px;
   }
   /* one orchestrated moment: the page settles in — then stillness */
   main { animation: settle 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
@@ -113,7 +130,7 @@ $layout_css
 </style>
 </head>
 <body>
-<header><span class="brand"><span class="mark">$initial</span>$site_name</span><nav>$nav</nav></header>
+<header><span class="brand">$brand_mark$site_name</span><nav>$nav</nav></header>
 <main>$hero$body$contact_block</main>
 <footer>© $year $site_name · Built with SiteForge$photo_credit</footer>
 $nav_script
@@ -171,6 +188,53 @@ CONTACT_FORM = Template("""
 </section>""")
 
 
+# tracker mode: bookings land in the owner's SiteForge dashboard. In the
+# app preview ($endpoint empty) submission demos the success state without
+# touching the network — the form goes live with the site.
+BOOKING_FORM = Template("""
+<section class="contact-form">
+  <h2>Request a booking</h2>
+  <form id="sf-book">
+    <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <label>Your name<input type="text" name="name" required maxlength="80"></label>
+    <label>Phone or email<input type="text" name="contact" required maxlength="120"></label>
+    $service_field
+    <label>Anything we should know?<textarea name="message" rows="3" maxlength="1000"></textarea></label>
+    <button type="submit">Request booking</button>
+    <p class="form-note" id="sf-book-note" role="status"></p>
+  </form>
+</section>
+<script>
+(function () {
+  var form = document.getElementById("sf-book");
+  var note = document.getElementById("sf-book-note");
+  var endpoint = "$endpoint";
+  var thanks = "<p class='form-done'><strong>Booking received.</strong> " +
+    "We&rsquo;ll get back to you shortly &mdash; thank you!</p>";
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (!endpoint) { form.innerHTML = thanks; return; }
+    var data = { key: "$key" };
+    new FormData(form).forEach(function (v, k) { data[k] = v; });
+    var btn = form.querySelector("button");
+    btn.disabled = true; btn.textContent = "Sending\\u2026";
+    fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    }).then(function (r) {
+      if (!r.ok) throw new Error("failed");
+      form.innerHTML = thanks;
+    }).catch(function () {
+      btn.disabled = false; btn.textContent = "Request booking";
+      note.textContent = "That didn\\u2019t send \\u2014 please try again, " +
+        "or reach us directly with the details on this page.";
+    });
+  });
+})();
+</script>""")
+
+
 PREVIEW_NAV_SCRIPT = """<script>
   document.querySelectorAll('nav a, main a[href^="/"]').forEach(function (a) {
     a.addEventListener("click", function (e) {
@@ -207,14 +271,36 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
     active = next((p for p in page_list if p["path"] == path), None)
     title = f"{active['title']} — {site_name}" if active and path != "/" else site_name
 
-    # a WORKING contact form on the contact page whenever the owner's
-    # email is known — formsubmit.co posts to their inbox, no backend
+    # the contact page carries the form the OWNER chose:
+    #   tracker — SiteForge booking form, feeding their Bookings dashboard
+    #   email   — formsubmit.co posts to their inbox, no backend
+    #   none    — contact details only, no form
     contact_block = ""
     contact = spec.get("contact") or {}
-    if "contact" in path and contact.get("email"):
-        contact_block = CONTACT_FORM.substitute(
-            email=contact["email"], site_name=site_name
-        )
+    form_mode = contact.get("mode") or ("email" if contact.get("email") else "none")
+    if "contact" in path:
+        if form_mode == "tracker" and spec.get("booking_key"):
+            import html as _html
+
+            services = [s for s in (spec.get("services") or []) if s]
+            service_field = ""
+            if len(services) >= 2:
+                options = "".join(
+                    f'<option>{_html.escape(s)}</option>' for s in services
+                )
+                service_field = (
+                    '<label>What would you like to book?'
+                    f'<select name="service"><option value="">Choose…</option>{options}</select></label>'
+                )
+            contact_block = BOOKING_FORM.substitute(
+                service_field=service_field,
+                endpoint=f"{spec.get('agent_base', '')}/agent/book" if mode == "live" else "",
+                key=spec["booking_key"],
+            )
+        elif form_mode == "email" and contact.get("email"):
+            contact_block = CONTACT_FORM.substitute(
+                email=contact["email"], site_name=site_name
+            )
 
     # real photography from the illustrate node, when present
     hero = ""
@@ -231,9 +317,15 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
         md.markdown(pages.get(path, ""), extensions=["extra"]),
         [p["path"] for p in page_list], path, mode,
     )
+    # the owner's uploaded logo replaces the initial mark everywhere
+    if spec.get("logo_url"):
+        brand_mark = f'<img class="logo-img" src="{spec["logo_url"]}" alt="{site_name} logo">'
+    else:
+        brand_mark = f'<span class="mark">{(site_name.strip()[:1] or "•").upper()}</span>'
+
     return PAGE.substitute(
         title=title,
-        initial=(site_name.strip()[:1] or "•").upper(),
+        brand_mark=brand_mark,
         fonts_query=fonts_query,
         accent=theme.get("primary_color") or "#333",
         bg=palette.get("background") or "#ffffff",

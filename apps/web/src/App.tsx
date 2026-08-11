@@ -9,7 +9,7 @@ import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
 import { authFetch, idToken, setAuthUser } from "./api";
 import ConfirmModal from "./ConfirmModal";
-import { IconArrowUp, IconChevronDown, IconCopy, IconGlobe, IconRetry, IconStop } from "./icons";
+import { IconArrowUp, IconChevronDown, IconClip, IconCopy, IconGlobe, IconRetry, IconStop, IconX } from "./icons";
 import Preview, { type Draft } from "./Preview";
 import Sidebar, { type ChatMeta } from "./Sidebar";
 import Thinking, { type ThinkBlock } from "./Thinking";
@@ -122,6 +122,9 @@ export default function App() {
   }
   const abortRef = useRef<AbortController | null>(null);
   const activeThread = useRef<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  // the owner's logo, staged in the composer until the message sends
+  const [pendingLogo, setPendingLogo] = useState<{ name: string; dataUrl: string } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLElement>(null);
@@ -356,9 +359,21 @@ export default function App() {
     history.pushState(null, "", "#/");
   }
 
+  function pickLogo(file: File | undefined | null) {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|svg\+xml|webp)$/.test(file.type)) return;
+    if (file.size > 512 * 1024) {
+      setMsgs((m) => [...m, { role: "agent", text: "That logo is over 512 KB — please use a smaller file.", error: true }]);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPendingLogo({ name: file.name, dataUrl: String(reader.result) });
+    reader.readAsDataURL(file);
+  }
+
   async function send(textOverride?: string) {
     const raw = textOverride ?? input;
-    if (!user || !raw.trim() || busy) return;
+    if (!user || !(raw.trim() || pendingLogo) || busy) return;
     let tid = thread;
     if (!tid) {
       const created = await authFetch("/agent/chats", {
@@ -373,7 +388,11 @@ export default function App() {
       loadChats(user); // the row appears in the sidebar NOW, titled later
     }
 
-    const text = raw.trim();
+    // a logo can ride along with (or without) words — the agent is told
+    // in plain language so the brief picks it up naturally
+    const logo = pendingLogo;
+    setPendingLogo(null);
+    const text = raw.trim() || "I've uploaded our logo — please use it on the site.";
     const myTid = tid; // everything below is scoped to THIS thread
     setInput("");
     if (composerRef.current) composerRef.current.style.height = "auto";
@@ -391,6 +410,17 @@ export default function App() {
     abortRef.current = controller;
 
     try {
+      if (logo) {
+        const up = await authFetch(`/agent/logo/${myTid}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data_url: logo.dataUrl }),
+        });
+        if (!up.ok) {
+          const j = await up.json().catch(() => ({ detail: "logo upload failed" }));
+          throw new Error(j.detail ?? "logo upload failed");
+        }
+      }
       const token = await user.getIdToken();
       const res = await authFetch("/agent/chat", {
         method: "POST",
@@ -716,6 +746,31 @@ export default function App() {
         )}
 
         <footer className="composer">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+            hidden
+            onChange={(e) => {
+              pickLogo(e.target.files?.[0]);
+              e.target.value = ""; // same file re-picked still fires change
+            }}
+          />
+          <button
+            className="icon-btn clip"
+            aria-label="Attach your logo"
+            data-tip="Attach your logo"
+            onClick={() => fileRef.current?.click()}
+          >
+            <IconClip />
+          </button>
+          {pendingLogo && (
+            <span className="attach-chip">
+              <img src={pendingLogo.dataUrl} alt="" />
+              {pendingLogo.name}
+              <button aria-label="Remove logo" onClick={() => setPendingLogo(null)}><IconX /></button>
+            </span>
+          )}
           <textarea
             ref={composerRef}
             rows={1}
@@ -743,7 +798,7 @@ export default function App() {
             <button
               className="round-action send"
               onClick={() => send()}
-              disabled={!input.trim()}
+              disabled={!input.trim() && !pendingLogo}
               aria-label="Send message"
             >
               <IconArrowUp />

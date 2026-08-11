@@ -80,7 +80,13 @@ def publish_draft(thread_id: str) -> str:
         row = conn.execute(
             "SELECT published_site_id FROM chats WHERE thread_id=%s", (thread_id,)
         ).fetchone()
-    site_id, url = publish_site(state.get("spec", {}), pages, row[0] if row else None)
+    # same decoration as the Publish button: booking form key, logo, endpoint
+    from publish import decorate_spec, logo_path, logo_row
+
+    spec = decorate_spec(state.get("spec", {}), thread_id, live=True)
+    logo = logo_row(thread_id)
+    extra = {logo_path(logo[0]): bytes(logo[1])} if logo else None
+    site_id, url = publish_site(spec, pages, row[0] if row else None, extra_files=extra)
     with psycopg.connect(DATABASE_URL) as conn:
         conn.execute(
             "UPDATE chats SET published_site_id=%s, published_url=%s WHERE thread_id=%s",

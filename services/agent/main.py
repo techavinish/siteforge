@@ -29,7 +29,13 @@ from pydantic import BaseModel
 
 from config import DATABASE_URL, GCP_PROJECT
 from graph import build_graph
-from publish import publish_site
+from publish import (
+    LOGO_MIMES,
+    decorate_spec as _decorate_spec,
+    logo_path as _logo_path,
+    logo_row as _logo_row,
+    publish_site,
+)
 from render import build_site_html
 
 _token_adapter = google_requests.Request()
@@ -69,7 +75,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://siteforge-dev-3977.web.app", "http://localhost:5173"],
+    allow_origins=["http://localhost:5173"],
+    # every published business site (sf-*.web.app) posts bookings here,
+    # and the app itself is a web.app origin — auth is the token/key, the
+    # origin was never the security boundary
+    allow_origin_regex=r"https://[a-z0-9-]+\.web\.app",
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type"],
 )
@@ -115,6 +125,30 @@ with psycopg.connect(DATABASE_URL) as _conn:
             created_at timestamptz NOT NULL DEFAULT now()
         )""")
     _conn.execute("CREATE INDEX IF NOT EXISTS ix_messages_thread ON messages (thread_id, id)")
+    # bookings from published sites — the client's dashboard reads these.
+    # keyed by thread_id: one business per conversation, ownership via chats
+    _conn.execute("""
+        CREATE TABLE IF NOT EXISTS bookings (
+            id         bigserial PRIMARY KEY,
+            thread_id  text NOT NULL REFERENCES chats(thread_id) ON DELETE CASCADE,
+            name       text NOT NULL,
+            contact    text NOT NULL,
+            service    text,
+            message    text,
+            status     text NOT NULL DEFAULT 'new',
+            created_at timestamptz NOT NULL DEFAULT now()
+        )""")
+    _conn.execute("CREATE INDEX IF NOT EXISTS ix_bookings_thread ON bookings (thread_id, id DESC)")
+    # owner-uploaded assets (the logo) — small binaries, versioned by upsert
+    _conn.execute("""
+        CREATE TABLE IF NOT EXISTS assets (
+            thread_id  text NOT NULL REFERENCES chats(thread_id) ON DELETE CASCADE,
+            kind       text NOT NULL,
+            mime       text NOT NULL,
+            data       bytea NOT NULL,
+            updated_at timestamptz NOT NULL DEFAULT now(),
+            PRIMARY KEY (thread_id, kind)
+        )""")
     _conn.commit()
 
 
@@ -199,6 +233,7 @@ NODE_LABELS = {
 FIELD_SUGGESTIONS = {
     "target_customers": ["Local families", "Young professionals", "Tourists and visitors"],
     "tone": ["Warm and friendly", "Modern and minimal", "Bold and energetic", "Premium and elegant"],
+    "booking": ["Use the SiteForge booking form", "Email me enquiries", "No form, just my details"],
 }
 
 DONE_SUGGESTIONS = [
@@ -400,7 +435,7 @@ def site(thread_id: str, path: str = "/", uid: str = Depends(current_uid)):
         raise HTTPException(status_code=404, detail="No site generated yet")
     if path not in pages:
         path = next(iter(pages))
-    return build_site_html(state.get("spec", {}), pages, path)
+    return build_site_html(_decorate_spec(state.get("spec", {}), thread_id, live=False), pages, path)
 
 
 @app.get("/agent/draft/{thread_id}")
@@ -412,6 +447,10 @@ def draft(thread_id: str, uid: str = Depends(current_uid)):
         row = conn.execute(
             "SELECT published_url FROM chats WHERE thread_id=%s", (thread_id,)
         ).fetchone()
+        counts = dict(conn.execute(
+            "SELECT status, count(*) FROM bookings WHERE thread_id=%s GROUP BY status",
+            (thread_id,),
+        ).fetchall())
     return {
         "phase": state.get("phase"),
         "brief": state.get("brief", {}),
@@ -419,6 +458,7 @@ def draft(thread_id: str, uid: str = Depends(current_uid)):
         "pages": state.get("pages", {}),
         "score": state.get("critique", {}).get("score"),
         "live_url": row[0] if row else None,
+        "bookings": {s: counts.get(s, 0) for s in ("new", "contacted", "closed")},
     }
 
 
@@ -511,7 +551,10 @@ def publish(thread_id: str, uid: str = Depends(current_uid)):
         ).fetchone()
     existing = row[0] if row else None
 
-    site_id, url = publish_site(state.get("spec", {}), pages, existing)
+    spec = _decorate_spec(state.get("spec", {}), thread_id, live=True)
+    logo = _logo_row(thread_id)
+    extra = {_logo_path(logo[0]): bytes(logo[1])} if logo else None
+    site_id, url = publish_site(spec, pages, existing, extra_files=extra)
 
     with psycopg.connect(DATABASE_URL) as conn:
         conn.execute(
@@ -520,6 +563,164 @@ def publish(thread_id: str, uid: str = Depends(current_uid)):
         )
         conn.commit()
     return {"url": url}
+
+
+class BookIn(BaseModel):
+    key: str  # the site's thread_id, embedded in the published form
+    name: str
+    contact: str
+    service: str = ""
+    message: str = ""
+    website: str = ""  # honeypot — humans never see it, bots fill it
+
+
+def _ip_limit(bucket: str, limit: int) -> bool:
+    """Best-effort Redis counter for unauthenticated surfaces. Redis down
+    = allow — a booking lost to our outage is worse than spam."""
+    import datetime
+
+    try:
+        import redis
+
+        r = redis.Redis.from_url(
+            os.environ.get("REDIS_URL", "redis://localhost:6379"), socket_timeout=2
+        )
+        key = f"book:{bucket}:{datetime.date.today().isoformat()}"
+        count = r.incr(key)
+        if count == 1:
+            r.expire(key, 90000)
+        return count <= limit
+    except Exception:
+        return True
+
+
+@app.post("/agent/book")
+def book(body: BookIn, request: Request):
+    """PUBLIC intake: the booking form on every published (and previewed)
+    site posts here. No login — a visitor booking a haircut has no account.
+    The key is the unguessable thread id baked into the site at render."""
+    if body.website.strip():
+        return {"ok": True}  # honeypot tripped: swallow silently
+    name, contact = body.name.strip()[:80], body.contact.strip()[:120]
+    if not name or not contact:
+        raise HTTPException(status_code=422, detail="Name and contact are required")
+
+    ip = (request.headers.get("X-Forwarded-For", "") or "?").split(",")[0].strip()
+    if not _ip_limit(f"ip:{ip}", 20) or not _ip_limit(f"site:{body.key}", 200):
+        raise HTTPException(status_code=429, detail="Too many requests — try again tomorrow")
+
+    with psycopg.connect(DATABASE_URL) as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM chats WHERE thread_id=%s", (body.key,)
+        ).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Unknown site")
+        conn.execute(
+            "INSERT INTO bookings (thread_id, name, contact, service, message) "
+            "VALUES (%s,%s,%s,%s,%s)",
+            (body.key, name, contact, body.service.strip()[:80] or None,
+             body.message.strip()[:1000] or None),
+        )
+        conn.commit()
+    return {"ok": True}
+
+
+@app.get("/agent/bookings/{thread_id}")
+def list_bookings(thread_id: str, cursor: str = "", limit: int = 50,
+                  uid: str = Depends(current_uid)):
+    """The owner's dashboard: newest first, keyset-paged, with the status
+    counts that head the view."""
+    own_thread(thread_id, uid)
+    limit = min(max(limit, 1), 200)
+    sql = ("SELECT id, name, contact, service, message, status, created_at "
+           "FROM bookings WHERE thread_id=%s")
+    params: list = [thread_id]
+    if cursor:
+        sql += " AND id < %s"
+        params.append(int(cursor))
+    sql += " ORDER BY id DESC LIMIT %s"
+    params.append(limit + 1)
+    with psycopg.connect(DATABASE_URL) as conn:
+        rows = conn.execute(sql, params).fetchall()
+        counts = dict(conn.execute(
+            "SELECT status, count(*) FROM bookings WHERE thread_id=%s GROUP BY status",
+            (thread_id,),
+        ).fetchall())
+    more = len(rows) > limit
+    rows = rows[:limit]
+    return {
+        "items": [
+            {"id": r[0], "name": r[1], "contact": r[2], "service": r[3],
+             "message": r[4], "status": r[5], "created_at": r[6].isoformat()}
+            for r in rows
+        ],
+        "counts": {s: counts.get(s, 0) for s in ("new", "contacted", "closed")},
+        "next_cursor": str(rows[-1][0]) if more else None,
+    }
+
+
+class BookingStatusIn(BaseModel):
+    status: str
+
+
+@app.patch("/agent/bookings/{thread_id}/{booking_id}")
+def update_booking(thread_id: str, booking_id: int, body: BookingStatusIn,
+                   uid: str = Depends(current_uid)):
+    own_thread(thread_id, uid)
+    if body.status not in ("new", "contacted", "closed"):
+        raise HTTPException(status_code=422, detail="Unknown status")
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute(
+            "UPDATE bookings SET status=%s WHERE thread_id=%s AND id=%s",
+            (body.status, thread_id, booking_id),
+        )
+        conn.commit()
+    return {"ok": True}
+
+
+class LogoIn(BaseModel):
+    data_url: str  # "data:image/png;base64,...." from the composer
+
+
+@app.post("/agent/logo/{thread_id}")
+def upload_logo(thread_id: str, body: LogoIn, uid: str = Depends(current_uid)):
+    """The owner's logo, straight from the paperclip button. Stored small
+    (≤512KB) and re-served to the preview / published with the site."""
+    own_thread(thread_id, uid)
+    import base64
+    import re as _re
+
+    m = _re.match(r"data:([a-z0-9./+-]+);base64,(.+)$", body.data_url, _re.DOTALL | _re.I)
+    if not m or m.group(1).lower() not in LOGO_MIMES:
+        raise HTTPException(status_code=422, detail="Use a PNG, JPG, SVG or WebP image")
+    try:
+        raw = base64.b64decode(m.group(2), validate=True)
+    except Exception:
+        raise HTTPException(status_code=422, detail="Broken image data")
+    if len(raw) > 512 * 1024:
+        raise HTTPException(status_code=422, detail="Logo must be under 512 KB")
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute(
+            "INSERT INTO assets (thread_id, kind, mime, data) VALUES (%s,'logo',%s,%s) "
+            "ON CONFLICT (thread_id, kind) DO UPDATE SET mime=EXCLUDED.mime, "
+            "data=EXCLUDED.data, updated_at=now()",
+            (thread_id, m.group(1).lower(), raw),
+        )
+        conn.commit()
+    return {"ok": True}
+
+
+@app.get("/agent/asset/{thread_id}/logo")
+def serve_logo(thread_id: str):
+    """Public by design: the preview <img> can't carry a token, and the
+    thread id is unguessable. Served with the stored mime."""
+    row = _logo_row(thread_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    from fastapi.responses import Response
+
+    return Response(bytes(row[1]), media_type=row[0],
+                    headers={"Cache-Control": "private, max-age=300"})
 
 
 def _rate_limit(uid: str) -> None:
