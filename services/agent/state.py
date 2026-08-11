@@ -7,6 +7,7 @@ and because it's checkpointed to Postgres, a conversation can pause for
 days (or survive a crash) and resume mid-interview.
 """
 
+import operator
 from typing import Annotated, Literal
 
 from langgraph.graph.message import add_messages
@@ -32,7 +33,8 @@ class AgentState(TypedDict):
     spec: dict
 
     # rendered copy per page: {"/": "...", "/menu": "...", ...}
-    pages: dict
+    # dict-merge reducer: parallel write_page branches (Send API) compose
+    pages: Annotated[dict, operator.or_]
 
     # critique verdict + revision bookkeeping (max one rewrite pass)
     critique: dict

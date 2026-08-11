@@ -301,6 +301,24 @@ export default function App() {
     });
   }, [loadChats, openThread]);
 
+  // keyboard shortcuts: Cmd/Ctrl+Shift+O new chat, Cmd/Ctrl+K search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.shiftKey && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        newChat();
+      } else if (mod && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCollapsed(false);
+        window.dispatchEvent(new Event("sf-focus-search"));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // browser back/forward between chats
   useEffect(() => {
     const onPop = () => {
@@ -563,7 +581,10 @@ export default function App() {
         user={user}
         collapsed={collapsed}
         onToggle={toggleSidebar}
-        onSelect={openThread}
+        onSelect={(id) => {
+          openThread(id);
+          if (window.matchMedia("(max-width: 640px)").matches) setCollapsed(true);
+        }}
         onNew={newChat}
         onDelete={setDeleteTarget}
         onRename={renameChat}

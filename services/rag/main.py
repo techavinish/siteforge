@@ -24,6 +24,7 @@ class SearchIn(BaseModel):
     query: str
     k: int = 3
     exclude: str = ""
+    topics: list[str] = []
 
 
 class IngestIn(BaseModel):
@@ -38,7 +39,7 @@ def ingest(body: IngestIn):
     must never be able to clobber them."""
     if not body.source.startswith("platinum-"):
         raise HTTPException(status_code=403, detail="only platinum- sources")
-    n = store.replace_source(body.source, body.chunks)
+    n = store.replace_source(body.source, body.chunks, topic="platinum")
     return {"ingested": n}
 
 
@@ -49,4 +50,4 @@ def healthz():
 
 @app.post("/rag/search")
 def search(body: SearchIn):
-    return {"results": store.search(body.query, min(max(body.k, 1), 10), body.exclude)}
+    return {"results": store.search(body.query, min(max(body.k, 1), 10), body.exclude, body.topics or None)}

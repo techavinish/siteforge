@@ -183,6 +183,7 @@ def plan(state: AgentState) -> dict:
                     {"path": "/contact", "title": "Contact", "purpose": "get in touch", "sections": ["details", "hours"]},
                 ],
             }
+    spec = _validate_spec(spec, state["brief"])
     # contact details ride on the spec deterministically — the renderer
     # turns them into a working form and tappable actions
     spec["contact"] = {
@@ -270,11 +271,11 @@ def _retrieve_guidelines(brief: dict, topic: str = "copy", page: dict | None = N
             f"How should a {tone} website for a {biz} selling "
             f"{brief.get('offerings', '')} write its headlines and pages?"
         )
-    # design queries skip the flywheel's own outputs so curated craft and
-    # theme seeds aren't drowned out by our previous generations
+    # flavoured retrieval: the query's topic scopes which knowledge answers.
+    # design questions consult design craft + theme seeds; copy questions
+    # consult writing craft AND proven platinum examples
     payload = {"query": query, "k": 4 if topic == "design" else 3}
-    if topic == "design":
-        payload["exclude"] = "platinum-"
+    payload["topics"] = ["design"] if topic == "design" else ["copy", "platinum"]
     try:
         r = requests.post(f"{url}/rag/search", json=payload, timeout=6)
         r.raise_for_status()
@@ -318,9 +319,72 @@ def write(state: AgentState) -> dict:
     return {"pages": pages, "phase": "writing"}
 
 
+def _validate_spec(spec: dict, brief: dict) -> dict:
+    """Deterministic guard: whatever the model returned becomes a valid,
+    renderable spec. Code checks what code can check."""
+    import re as _re
+
+    spec.setdefault("site_name", brief.get("business_name", "Your Business"))
+    theme = spec.setdefault("theme", {})
+    if not _re.fullmatch(r"#[0-9a-fA-F]{6}", str(theme.get("primary_color", ""))):
+        theme["primary_color"] = "#2f4f4f"
+    try:
+        theme["radius"] = max(0, min(18, int(theme.get("radius", 8))))
+    except (TypeError, ValueError):
+        theme["radius"] = 8
+    if theme.get("layout") not in ("classic", "split", "minimal", "bold"):
+        theme["layout"] = "classic"
+    pages = [p for p in spec.get("pages", []) if isinstance(p, dict) and p.get("path")]
+    for p in pages:
+        p["path"] = "/" + p["path"].strip("/") if p["path"] != "/" else "/"
+        p.setdefault("title", p["path"].strip("/").title() or "Home")
+        p.setdefault("purpose", "")
+        p.setdefault("sections", [])
+    paths = {p["path"] for p in pages}
+    if "/" not in paths:
+        pages.insert(0, {"path": "/", "title": "Home", "purpose": "introduce the business", "sections": []})
+    if "/contact" not in paths:
+        pages.append({"path": "/contact", "title": "Contact", "purpose": "get in touch", "sections": []})
+    spec["pages"] = pages[:6]
+    return spec
+
+
+def write_page(payload: dict) -> dict:
+    """ONE page, written in its own parallel branch (Send API). The payload
+    carries everything: page, brief, site voice, valid link targets, and —
+    on revision passes — this page's own feedback only."""
+    model = chat_model(WRITER_MODEL, temperature=0.8)
+    page, brief, spec = payload["page"], payload["brief"], payload["spec"]
+    guidelines = _retrieve_guidelines(brief, topic="copy", page=page)
+    site_map = ", ".join(f"{p['path']} ({p['title']})" for p in spec["pages"])
+    prompt = (
+        f"Site: {spec.get('site_name', '')} — mood: {spec.get('theme', {}).get('mood', '')}\n"
+        f"Site pages (the ONLY valid link targets): {site_map}\n"
+        f"Business brief: {brief}\n"
+        f"Page: {page['title']} ({page['path']}) — {page.get('purpose', '')}\n"
+        f"Sections: {page.get('sections', [])}"
+    )
+    if payload.get("feedback"):
+        prompt += f"\nA reviewer said about THIS page: {payload['feedback']}\nFix those issues."
+    if payload.get("existing"):
+        prompt += (
+            f"\nEXISTING page copy:\n{payload['existing']}\n"
+            f"The owner asked: {payload.get('edit_request', '')}\n"
+            "Apply that change and keep everything else as close as possible."
+        )
+    system = WRITE_SYSTEM
+    if guidelines:
+        system += f"\n\nProven guidelines from our knowledge base — apply them:\n{guidelines}"
+    result = model.invoke([SystemMessage(system), ("user", prompt)])
+    return {"pages": {page["path"]: result.content}, "phase": "writing"}
+
+
 CRITIQUE_SYSTEM = """You are a strict reviewer of small-business website copy.
-Score the draft 1-10 for: specificity to THIS business, clarity, and tone match.
-Respond with ONLY JSON: {"score": int, "feedback": "one paragraph of concrete fixes"}"""
+Anchor: 7 means shippable — specific to this business, correct tone, no generic
+filler; below 7 means blocking issues exist. Review EVERY page separately.
+Respond with ONLY JSON:
+{"score": <overall 1-10>,
+ "pages": {"<path>": "OK" or "concrete fixes for this page only", ...}}"""
 
 
 def critique(state: AgentState) -> dict:
@@ -333,8 +397,10 @@ def critique(state: AgentState) -> dict:
     )
     try:
         verdict = extract_json(result.content)
+        if not isinstance(verdict.get("pages"), dict):
+            verdict["pages"] = {}
     except ValueError:
-        verdict = {"score": 7, "feedback": ""}  # unparseable critic never blocks delivery
+        verdict = {"score": 7, "pages": {}}  # unparseable critic never blocks delivery
     return {"critique": verdict, "revisions": state.get("revisions", 0) + 1, "phase": "critiquing"}
 
 

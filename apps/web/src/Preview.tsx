@@ -35,15 +35,25 @@ export default function Preview({
   onClose: () => void;
 }) {
   const paths = Object.keys(draft.pages ?? {});
-  const [active, setActive] = useState(paths[0] ?? "/");
+  const [active, setActiveRaw] = useState(paths[0] ?? "/");
+  const setActive = (p: string) => { setFrameLoading(true); setActiveRaw(p); };
   const [liveUrl, setLiveUrl] = useState<string | null>(draft.live_url ?? null);
   const [publishing, setPublishing] = useState(false);
   const [frameToken, setFrameToken] = useState("");
+  const [frameLoading, setFrameLoading] = useState(true);
+  const [pubError, setPubError] = useState("");
 
-  // the iframe can't send headers — its src carries the ID token instead
+  // the iframe can't send headers — its src carries the ID token instead.
+  // refreshed per navigation: firebase tokens expire hourly
   useEffect(() => {
     idToken().then(setFrameToken);
-  }, [threadId]);
+  }, [threadId, active]);
+
+  // a regeneration can remove the page being viewed — never 404 the frame
+  useEffect(() => {
+    if (paths.length && !paths.includes(active)) setActive(paths[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
 
   async function publishSite() {
     if (publishing) return;
@@ -54,7 +64,8 @@ export default function Preview({
       const { url } = await r.json();
       setLiveUrl(url);
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      setPubError(e instanceof Error ? e.message : String(e));
+      setTimeout(() => setPubError(""), 5000);
     } finally {
       setPublishing(false);
     }
@@ -102,14 +113,21 @@ export default function Preview({
         </button>
       </div>
 
-      {frameToken && (
-        <iframe
-          className="site-frame"
-          title="Website preview"
-          sandbox="allow-scripts"
-          src={`/agent/site/${threadId}?path=${encodeURIComponent(active)}&token=${encodeURIComponent(frameToken)}`}
-        />
-      )}
+      {pubError && <div className="publish-toast" role="alert">{pubError}</div>}
+      <div className="frame-wrap">
+        {frameLoading && (
+          <div className="frame-skeleton"><span className="spinner" /></div>
+        )}
+        {frameToken && (
+          <iframe
+            className="site-frame"
+            title="Website preview"
+            sandbox="allow-scripts"
+            onLoad={() => setFrameLoading(false)}
+            src={`/agent/site/${threadId}?path=${encodeURIComponent(active)}&token=${encodeURIComponent(frameToken)}`}
+          />
+        )}
+      </div>
     </aside>
   );
 }

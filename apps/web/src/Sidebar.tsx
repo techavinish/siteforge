@@ -35,6 +35,13 @@ export default function Sidebar({
 }) {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const focus = () => searchRef.current?.focus();
+    window.addEventListener("sf-focus-search", focus);
+    return () => window.removeEventListener("sf-focus-search", focus);
+  }, []);
   const [editValue, setEditValue] = useState("");
   const debounceRef = useRef<number>();
 
@@ -70,6 +77,8 @@ export default function Sidebar({
   }
 
   return (
+    <>
+    <div className="side-scrim" onClick={onToggle} />
     <nav className="sidebar">
       <div className="side-head">
         <span className="logo">SiteForge</span>
@@ -85,7 +94,7 @@ export default function Sidebar({
 
       <div className="side-search">
         <span className="search-ico"><IconSearch /></span>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search chats" />
+        <input ref={searchRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search chats" />
       </div>
 
       <div className="chat-list">
@@ -154,5 +163,6 @@ export default function Sidebar({
         </button>
       </div>
     </nav>
+    </>
   );
 }

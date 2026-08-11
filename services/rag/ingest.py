@@ -26,12 +26,20 @@ def chunk_markdown(text: str) -> list[str]:
     return chunks
 
 
+# which knowledge serves which stage of generation
+TOPIC_BY_SOURCE = {
+    "design-craft": "design",
+    "surface-modes": "design",
+    "theme-library": "design",
+}
+
+
 def main(corpus_dir: str = "corpus") -> None:
     store.setup()
     total = 0
     for path in sorted(pathlib.Path(corpus_dir).glob("*.md")):
         chunks = chunk_markdown(path.read_text())
-        n = store.replace_source(path.stem, chunks)
+        n = store.replace_source(path.stem, chunks, TOPIC_BY_SOURCE.get(path.stem, "copy"))
         print(f"  {path.stem}: {n} chunks")
         total += n
     print(f"ingested {total} chunks")

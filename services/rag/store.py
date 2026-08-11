@@ -61,31 +61,37 @@ def setup() -> None:
             "CREATE INDEX IF NOT EXISTS ix_rag_hnsw ON rag_chunks "
             "USING hnsw (embedding vector_cosine_ops)"
         )
+        # flavour: every chunk carries its topic (design/copy/platinum) so
+        # retrieval can be scoped to what the query is actually about
+        conn.execute("ALTER TABLE rag_chunks ADD COLUMN IF NOT EXISTS topic text NOT NULL DEFAULT 'copy'")
         conn.commit()
 
 
-def replace_source(source: str, chunks: list[str]) -> int:
+def replace_source(source: str, chunks: list[str], topic: str = "copy") -> int:
     """Idempotent ingest: re-running a source replaces its chunks."""
     vectors = embed(chunks)
     with psycopg.connect(DATABASE_URL) as conn:
         conn.execute("DELETE FROM rag_chunks WHERE source=%s", (source,))
         for content, vector in zip(chunks, vectors):
             conn.execute(
-                "INSERT INTO rag_chunks (source, content, embedding) VALUES (%s, %s, %s::vector)",
-                (source, content, _vec(vector)),
+                "INSERT INTO rag_chunks (source, content, embedding, topic) VALUES (%s, %s, %s::vector, %s)",
+                (source, content, _vec(vector), topic),
             )
         conn.commit()
     return len(chunks)
 
 
-def search(query: str, k: int = 3, exclude: str = "") -> list[dict]:
+def search(query: str, k: int = 3, exclude: str = "", topics: list[str] | None = None) -> list[dict]:
     """exclude: source prefix to skip — e.g. 'platinum-' keeps the flywheel's
     own outputs from drowning out the curated craft on design queries."""
     qvec = _vec(list(embed_query(query)))
-    sql = "SELECT source, content, 1 - (embedding <=> %s::vector) AS score FROM rag_chunks"
+    sql = "SELECT source, content, 1 - (embedding <=> %s::vector) AS score FROM rag_chunks WHERE TRUE"
     params: list = [qvec]
+    if topics:
+        sql += " AND topic = ANY(%s)"
+        params.append(list(topics))
     if exclude:
-        sql += " WHERE source NOT LIKE %s"
+        sql += " AND source NOT LIKE %s"
         params.append(f"{exclude}%")
     sql += " ORDER BY embedding <=> %s::vector LIMIT %s"
     params += [qvec, k]
