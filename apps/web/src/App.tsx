@@ -607,11 +607,9 @@ export default function App() {
       )}
 
       <main className="chat-shell">
-        {collapsed && thread && (
-          <div className="chat-top" title={chats.find((c) => c.thread_id === thread)?.title}>
-            {chats.find((c) => c.thread_id === thread)?.title ?? ""}
-          </div>
-        )}
+        <div className="chat-top" title={chats.find((c) => c.thread_id === thread)?.title}>
+          {thread ? chats.find((c) => c.thread_id === thread)?.title ?? "…" : "New chat"}
+        </div>
         <section
           className={positioning ? "chat positioning" : "chat"}
           ref={chatRef}
