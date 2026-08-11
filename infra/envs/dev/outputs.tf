@@ -19,6 +19,14 @@ output "agent_url" {
   value = module.agent.uri
 }
 
+output "rag_url" {
+  value = module.rag.uri
+}
+
+output "mcp_url" {
+  value = module.mcp.uri
+}
+
 # Public client config for the web app (api_key here is an identifier,
 # not a secret — Firebase security comes from Auth rules + IAM)
 output "firebase_web_config" {

@@ -149,6 +149,11 @@ def plan(state: AgentState) -> dict:
     messages.append(SystemMessage(f"Brief: {state['brief']}"))
     result = model.invoke(messages)
     spec = extract_json(result.content)
+    # contact details ride on the spec deterministically — the renderer
+    # turns them into a working form and tappable actions
+    spec["contact"] = {
+        k: state["brief"].get(k, "") for k in ("phone", "email", "location")
+    }
     return {"spec": spec, "phase": "planning"}
 
 

@@ -1,0 +1,13 @@
+apiVersion: 1
+datasources:
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    uid: siteforge-ch
+    jsonData:
+      host: clickhouse
+      port: 8123
+      protocol: http
+      username: siteforge
+      defaultDatabase: siteforge
+    secureJsonData:
+      password: siteforge_dev

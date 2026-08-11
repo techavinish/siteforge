@@ -1,0 +1,39 @@
+{
+  "title": "Site Quality — Gold Layer",
+  "uid": "sf-eval-quality",
+  "timezone": "browser",
+  "refresh": "5m",
+  "time": { "from": "now-14d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Average quality score per site (daily)",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 10 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "siteforge-ch" },
+      "fieldConfig": { "defaults": { "min": 0, "max": 10, "unit": "none" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT toDateTime(day) AS time, site, avgMerge(avg_score) AS score FROM siteforge.gold_daily GROUP BY day, site ORDER BY day",
+          "format": 0
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Latest evaluation results",
+      "gridPos": { "x": 0, "y": 10, "w": 24, "h": 10 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "siteforge-ch" },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT ts, site, check, score, detail FROM siteforge.silver_evals ORDER BY ts DESC LIMIT 50",
+          "format": 1
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39
+}

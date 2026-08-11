@@ -42,15 +42,79 @@ module "agent" {
     DB_USER       = google_sql_user.app.name
     DB_NAME       = google_sql_database.siteforge.name
     GCP_PROJECT   = var.project_id
+    RAG_URL       = module.rag.uri # hosted generations get grounded too
   }
 
   secret_env = {
     DB_PASS            = "db-password"
     OPENROUTER_API_KEY = "openrouter-api-key"
     PEXELS_API_KEY     = "pexels-api-key"
+    SENTRY_DSN         = "sentry-dsn"
   }
 
   depends_on = [google_project_service.enabled]
+}
+
+# retrieval — same knowledge base as local, reading the corpus in Cloud SQL
+module "rag" {
+  source = "../../modules/cloud-run-service"
+
+  name       = "rag"
+  project_id = var.project_id
+  region     = var.region
+  image      = "asia-south1-docker.pkg.dev/${var.project_id}/services/rag:bootstrap"
+  memory     = "1Gi" # onnx embedding model resident in memory
+
+  allow_unauthenticated = true # non-sensitive guidance content; called by agent + mcp
+  service_account_email = google_service_account.app_runtime.email
+
+  cloudsql_instances = [google_sql_database_instance.main.connection_name]
+
+  env = {
+    CLOUDSQL_CONN = google_sql_database_instance.main.connection_name
+    DB_USER       = google_sql_user.app.name
+    DB_NAME       = google_sql_database.siteforge.name
+  }
+
+  secret_env = {
+    DB_PASS    = "db-password"
+    SENTRY_DSN = "sentry-dsn"
+  }
+
+  depends_on = [google_project_service.enabled]
+}
+
+# the remote MCP surface — any MCP client on the internet can build and
+# publish SiteForge sites through this
+module "mcp" {
+  source = "../../modules/cloud-run-service"
+
+  name       = "mcp"
+  project_id = var.project_id
+  region     = var.region
+  image      = "asia-south1-docker.pkg.dev/${var.project_id}/services/mcp:bootstrap"
+  memory     = "1Gi"
+
+  allow_unauthenticated = true
+  service_account_email = google_service_account.app_runtime.email
+
+  env = {
+    GCP_PROJECT = var.project_id
+    RAG_URL     = module.rag.uri
+  }
+
+  secret_env = {
+    OPENROUTER_API_KEY = "openrouter-api-key"
+    PEXELS_API_KEY     = "pexels-api-key"
+  }
+
+  depends_on = [google_project_service.enabled]
+}
+
+resource "google_secret_manager_secret_iam_member" "runtime_reads_sentry" {
+  secret_id = "sentry-dsn"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.app_runtime.email}"
 }
 
 # publish.py creates + releases hosting sites as the runtime SA

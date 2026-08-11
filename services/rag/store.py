@@ -6,10 +6,18 @@ from functools import lru_cache
 
 import psycopg
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://siteforge:siteforge_dev@localhost:5432/siteforge",
-)
+# local docker pg by default; Cloud Run builds the unix-socket DSN from
+# parts (password arrives via Secret Manager, never in an env literal)
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+if not DATABASE_URL:
+    _conn = os.environ.get("CLOUDSQL_CONN", "")
+    if _conn:
+        DATABASE_URL = (
+            f"postgresql://{os.environ.get('DB_USER', 'app')}:{os.environ['DB_PASS']}"
+            f"@/{os.environ.get('DB_NAME', 'siteforge')}?host=/cloudsql/{_conn}"
+        )
+    else:
+        DATABASE_URL = "postgresql://siteforge:siteforge_dev@localhost:5432/siteforge"
 EMBED_DIM = 384
 
 

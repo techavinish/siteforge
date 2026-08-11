@@ -80,6 +80,22 @@ $layout_css
   blockquote { border-left: 3px solid var(--accent); background: var(--surface); padding: 14px 20px; margin: 1.2em 0; border-radius: 0 8px 8px 0; }
   hr { border: none; border-top: 1px solid color-mix(in srgb, var(--ink) 12%, transparent); margin: 2.5em 0; }
   footer { border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); padding: 28px; text-align: center; font-size: 0.8rem; color: #888; }
+  .contact-form { margin-top: 2.5em; }
+  .contact-form form { display: grid; gap: 14px; max-width: 460px; }
+  .contact-form label { display: grid; gap: 6px; font-size: 0.85rem; font-weight: 600; }
+  .contact-form input, .contact-form textarea {
+    font: inherit; padding: 11px 14px; border-radius: calc(var(--radius) * 0.7);
+    border: 1.5px solid color-mix(in srgb, var(--ink) 18%, transparent);
+    background: var(--bg); color: var(--ink);
+  }
+  .contact-form input:focus, .contact-form textarea:focus {
+    outline: none; border-color: var(--accent);
+  }
+  .contact-form button {
+    font: inherit; font-weight: 600; padding: 12px; border: none;
+    border-radius: var(--radius); background: var(--accent); color: #fff;
+    cursor: pointer;
+  }
   .mark {
     display: inline-grid; place-items: center; width: 30px; height: 30px;
     margin-right: 10px; border-radius: var(--radius);
@@ -98,7 +114,7 @@ $layout_css
 </head>
 <body>
 <header><span class="brand"><span class="mark">$initial</span>$site_name</span><nav>$nav</nav></header>
-<main>$hero$body</main>
+<main>$hero$body$contact_block</main>
 <footer>© $year $site_name · Built with SiteForge$photo_credit</footer>
 $nav_script
 </body>
@@ -141,6 +157,20 @@ LAYOUT_CSS = {
 }
 
 
+CONTACT_FORM = Template("""
+<section class="contact-form">
+  <h2>Send us a message</h2>
+  <form action="https://formsubmit.co/$email" method="POST">
+    <input type="hidden" name="_subject" value="New enquiry from your $site_name website">
+    <input type="hidden" name="_captcha" value="false">
+    <label>Your name<input type="text" name="name" required></label>
+    <label>Your email<input type="email" name="email" required></label>
+    <label>Message<textarea name="message" rows="4" required></textarea></label>
+    <button type="submit">Send message</button>
+  </form>
+</section>""")
+
+
 PREVIEW_NAV_SCRIPT = """<script>
   document.querySelectorAll('nav a, main a[href^="/"]').forEach(function (a) {
     a.addEventListener("click", function (e) {
@@ -177,6 +207,15 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
     active = next((p for p in page_list if p["path"] == path), None)
     title = f"{active['title']} — {site_name}" if active and path != "/" else site_name
 
+    # a WORKING contact form on the contact page whenever the owner's
+    # email is known — formsubmit.co posts to their inbox, no backend
+    contact_block = ""
+    contact = spec.get("contact") or {}
+    if "contact" in path and contact.get("email"):
+        contact_block = CONTACT_FORM.substitute(
+            email=contact["email"], site_name=site_name
+        )
+
     # real photography from the illustrate node, when present
     hero = ""
     image = (active or {}).get("image")
@@ -208,6 +247,7 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
         body=body_html,
         year=datetime.now(timezone.utc).year,
         nav_script="" if mode == "live" else PREVIEW_NAV_SCRIPT,
+        contact_block=contact_block,
         hero=hero,
         photo_credit=" · Photos via Pexels" if any_photos else "",
         layout_css=LAYOUT_CSS.get(theme.get("layout", "classic"), LAYOUT_CSS["classic"]),

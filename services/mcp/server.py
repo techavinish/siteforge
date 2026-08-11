@@ -8,7 +8,12 @@ same pipeline the product uses. This is the tool surface as a product.
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "agent"))
+# agent modules: sibling dir in the docker image, ../agent in the monorepo
+_here = os.path.dirname(os.path.abspath(__file__))
+for _cand in (os.path.join(_here, "agent"), os.path.join(_here, "..", "agent")):
+    if os.path.isdir(_cand):
+        sys.path.insert(0, _cand)
+        break
 
 import requests
 from mcp.server.fastmcp import FastMCP

@@ -1,0 +1,12 @@
+# MCP image needs the agent's code — build with services/ as context
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - mcp/Dockerfile
+      - -t
+      - asia-south1-docker.pkg.dev/siteforge-dev-3977/services/mcp:bootstrap
+      - .
+images:
+  - asia-south1-docker.pkg.dev/siteforge-dev-3977/services/mcp:bootstrap

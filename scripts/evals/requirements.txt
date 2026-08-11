@@ -1,0 +1,5 @@
+# heavier eval frameworks — installed on demand, not in service venvs
+deepeval==2.*
+ragas==0.2.*
+datasets==3.*
+langchain-openai==0.2.*
