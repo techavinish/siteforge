@@ -39,6 +39,30 @@
 - [x] DeepEval + Ragas scripts (`scripts/evals/`) — need paid OpenRouter credits to execute
 - Deliberately local (documented): Temporal server + worker + eval service — moving them cloud-side requires Temporal Cloud + ClickHouse Cloud; the seams are ready
 
+## Deep-audit backlog (2026-08-11) — P1/P2s deferred after the P0 wave
+
+From three parallel audits (UI/UX, agent/LangGraph, RAG). P0s all landed; these remain, in value order:
+
+**Agent**
+- [ ] Send API fan-out: parallel per-page writes with a merging `pages` reducer; per-page retry policy; failed page degrades to previous copy ("3 of 4 updated") — biggest latency + resilience win
+- [ ] Per-page critic output (`{"pages": {"/": "fixes", "/menu": "OK"}}`) so revisions touch only failing pages; anchor the 1–10 scale
+- [ ] Worker's `generate_draft` should invoke a compiled generation subgraph, not hand-run nodes (Temporal path currently skips the revision loop; `update_state` without `as_node` is fragile)
+- [ ] Async endpoint + `AsyncPostgresSaver` + psycopg pool (one shared connection today; ~40 concurrent chats stalls the threadpool)
+- [ ] Few-shot + enum for UNDERSTAND's `edit_target`; `response_format: json_object` via OpenRouter; trim message history to last ~12
+- [ ] `saver.delete_thread()` instead of raw checkpoint table deletes
+
+**RAG**
+- [ ] `topic` metadata column (design/copy/platinum) replacing prefix-exclude
+- [ ] Gold-set retrieval eval: ~30 labeled query→source pairs, hit@k/MRR in CI (free, local embeddings)
+- [ ] Corpus expansion: social proof, FAQ/gallery/booking patterns, mobile-first, more industries
+- [ ] Hybrid tsvector + RRF; per-source diversity cap; local reranker
+- [ ] Log retrieved sources per generation into bronze → correlate with judge scores
+
+**FE**
+- [ ] Keyboard shortcuts (Cmd+Shift+O new chat, Cmd+K search)
+- [ ] Preview: inline publish-error toast (still `alert()`), iframe loading skeleton, stale-path reset on regeneration, token refresh, page-tab row
+- [ ] Mobile sidebar scrim + auto-close on select; timestamps/date separators
+
 ## Key decisions (and why)
 
 - **Monorepo**, path-filtered CI — shared types, atomic changes, one-person team
