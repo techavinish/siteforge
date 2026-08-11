@@ -65,9 +65,25 @@ def own_thread(thread_id: str, uid: str) -> None:
 
 app = FastAPI(title="siteforge-agent")
 
-# One pool for the process; .setup() creates the checkpoint tables on first run.
-saver_cm = PostgresSaver.from_conn_string(DATABASE_URL)
-saver = saver_cm.__enter__()
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://siteforge-dev-3977.web.app", "http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+# A REAL pool: parallel Send branches checkpoint concurrently, and a
+# dropped connection must not require a process restart.
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+
+_pool = ConnectionPool(
+    DATABASE_URL, min_size=1, max_size=8, open=True,
+    kwargs={"autocommit": True, "row_factory": dict_row},
+)
+saver = PostgresSaver(_pool)
 saver.setup()
 graph = build_graph(checkpointer=saver)
 
@@ -661,4 +677,8 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
 
         _ensure_title(body.thread_id, body.message)
 
-    return StreamingResponse(events(), media_type="text/event-stream")
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+    )

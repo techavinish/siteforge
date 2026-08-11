@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { authFetch, idToken } from "./api";
+import { agentUrl, authFetch, idToken } from "./api";
 import { IconExpand, IconX } from "./icons";
 
 export type Draft = {
@@ -124,7 +124,7 @@ export default function Preview({
             title="Website preview"
             sandbox="allow-scripts"
             onLoad={() => setFrameLoading(false)}
-            src={`/agent/site/${threadId}?path=${encodeURIComponent(active)}&token=${encodeURIComponent(frameToken)}`}
+            src={agentUrl(`/agent/site/${threadId}?path=${encodeURIComponent(active)}&token=${encodeURIComponent(frameToken)}`)}
           />
         )}
       </div>

@@ -10,3 +10,4 @@ requests==2.*
 temporalio==1.*
 langfuse==2.*
 sentry-sdk[fastapi]==2.*
+psycopg-pool==3.*

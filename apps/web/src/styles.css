@@ -745,3 +745,9 @@ button.primary:disabled { opacity: 0.45; }
     animation: fade 0.15s ease both;
   }
 }
+
+/* message-action tooltips open DOWNWARD — the well clips anything above */
+.msg-actions [data-tip]:hover::after,
+.msg-actions [data-tip]:focus-visible::after {
+  bottom: auto; top: calc(100% + 8px);
+}

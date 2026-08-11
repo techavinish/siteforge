@@ -18,6 +18,11 @@ Phase = Literal[
 ]
 
 
+def _last(_old, new):
+    """last-write-wins reducer — parallel branches may all report phase"""
+    return new
+
+
 class AgentState(TypedDict):
     # add_messages is a REDUCER: node updates append, never overwrite.
     # This is how multi-turn chat history accumulates safely.
@@ -45,4 +50,4 @@ class AgentState(TypedDict):
     edit_target: str
     edit_request: str
 
-    phase: Phase
+    phase: Annotated[Phase, _last]
