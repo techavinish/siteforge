@@ -58,11 +58,18 @@ def understand(state: AgentState) -> dict:
     last_user = next(
         (m.content for m in reversed(state["messages"]) if m.type == "human"), ""
     )
+    # merge, never replace: models often return only the latest turn's
+    # fields, and a partial extraction must not erase earlier answers
+    extracted = data.get("brief") or {}
+    merged = {**state.get("brief", {}), **{k: v for k, v in extracted.items() if v}}
     return {
-        "brief": data.get("brief", state.get("brief", {})),
-        "brief_complete": bool(data.get("complete")),
+        "brief": merged,
+        # completeness is ground truth we can compute — never outsource a
+        # boolean the graph routes on to the model
+        "brief_complete": all(merged.get(f) for f in REQUIRED_BRIEF_FIELDS),
         "edit_target": (data.get("edit_target") or "none") if site_exists else "none",
         "edit_request": last_user if site_exists else "",
+        "revisions": 0,  # the quality loop is bounded PER RUN, not per thread
         "phase": "thinking",
     }
 
@@ -147,8 +154,35 @@ def plan(state: AgentState) -> dict:
     if craft:
         messages.append(SystemMessage(f"Design craft to apply:\n{craft}"))
     messages.append(SystemMessage(f"Brief: {state['brief']}"))
-    result = model.invoke(messages)
-    spec = extract_json(result.content)
+    if state.get("edit_target") == "design" and state.get("edit_request"):
+        import json as _json
+
+        messages.append(SystemMessage(
+            "CURRENT spec — change ONLY what the owner asked, keep everything "
+            f"else identical:\n{_json.dumps(state.get('spec', {}))}\n"
+            f"Owner's request: {state['edit_request']}"
+        ))
+    try:
+        result = model.invoke(messages)
+        spec = extract_json(result.content)
+    except ValueError as err:
+        # one retry with the parse error in view, then a minimal valid spec —
+        # a malformed plan must never kill the whole run
+        try:
+            retry = model.invoke(messages + [SystemMessage(
+                f"Your previous reply was not valid JSON ({err}). Reply with ONLY the JSON object."
+            )])
+            spec = extract_json(retry.content)
+        except ValueError:
+            name = state["brief"].get("business_name", "Your Business")
+            spec = {
+                "site_name": name,
+                "theme": {"mood": state["brief"].get("tone", ""), "primary_color": "#2f4f4f"},
+                "pages": [
+                    {"path": "/", "title": "Home", "purpose": "introduce the business", "sections": ["hero", "offerings", "why us"]},
+                    {"path": "/contact", "title": "Contact", "purpose": "get in touch", "sections": ["details", "hours"]},
+                ],
+            }
     # contact details ride on the spec deterministically — the renderer
     # turns them into a working form and tappable actions
     spec["contact"] = {
@@ -206,24 +240,35 @@ the website:
 Be specific to this business — never generic filler. Match the requested tone."""
 
 
-def _retrieve_guidelines(brief: dict, topic: str = "copy") -> str:
+def _retrieve_guidelines(brief: dict, topic: str = "copy", page: dict | None = None) -> str:
     """Pull proven craft from the RAG service — grounding the planner and
-    writer in knowledge instead of vibes. Absent service = no guidelines,
-    never a failed generation."""
+    writer in knowledge instead of vibes. Queries are phrased as natural
+    questions (bge retrieves questions better than keyword soup) and are
+    PER PAGE for copy, so contact-page wisdom reaches contact pages.
+    Absent service = no guidelines, never a failed generation."""
     import os
 
     import requests
 
     url = os.environ.get("RAG_URL", "http://localhost:8002")
+    biz = brief.get("business_type", "business")
+    tone = brief.get("tone", "")
     if topic == "design":
         query = (
-            f"{brief.get('business_type', '')} {brief.get('tone', '')} website "
-            "design palette typography hero signature motion"
+            f"How should a {tone} website for a {biz} serving "
+            f"{brief.get('target_customers', 'customers')} choose its palette, "
+            "typography, layout and signature element?"
+        )
+    elif page:
+        query = (
+            f"How should the {page.get('title', '')} page of a {tone} {biz} "
+            f"website be structured and written? Purpose: {page.get('purpose', '')}. "
+            f"Offerings: {brief.get('offerings', '')}."
         )
     else:
         query = (
-            f"{brief.get('business_type', '')} website copy, "
-            f"{brief.get('tone', '')} tone, headlines and page structure"
+            f"How should a {tone} website for a {biz} selling "
+            f"{brief.get('offerings', '')} write its headlines and pages?"
         )
     # design queries skip the flywheel's own outputs so curated craft and
     # theme seeds aren't drowned out by our previous generations
@@ -241,22 +286,30 @@ def _retrieve_guidelines(brief: dict, topic: str = "copy") -> str:
 def write(state: AgentState) -> dict:
     model = chat_model(WRITER_MODEL, temperature=0.8)
     feedback = state.get("critique", {}).get("feedback", "")
-    guidelines = _retrieve_guidelines(state["brief"])
     pages = {}
     for page in state["spec"]["pages"]:
+        site_map = ", ".join(
+            f"{p['path']} ({p['title']})" for p in state["spec"]["pages"]
+        )
         prompt = (
+            f"Site: {state['spec'].get('site_name', '')} — mood: "
+            f"{state['spec'].get('theme', {}).get('mood', '')}\n"
+            f"Site pages (the ONLY valid link targets): {site_map}\n"
             f"Business brief: {state['brief']}\n"
             f"Page: {page['title']} ({page['path']}) — {page['purpose']}\n"
             f"Sections: {page['sections']}"
         )
         if feedback:
             prompt += f"\nA reviewer said: {feedback}\nFix those issues this time."
-        if state.get("edit_target") == "copy" and state.get("edit_request"):
+        if state.get("edit_target") == "copy" and state.get("edit_request") and state.get("revisions", 0) == 0:
             prompt += (
                 f"\nEXISTING page copy:\n{state.get('pages', {}).get(page['path'], '')}\n"
                 f"The owner asked: {state['edit_request']}\n"
                 "Apply that change and keep everything else as close as possible."
             )
+        # per-page retrieval: the contact page gets contact-page craft,
+        # the menu page gets menu craft — not one generic blend
+        guidelines = _retrieve_guidelines(state["brief"], topic="copy", page=page)
         system = WRITE_SYSTEM
         if guidelines:
             system += f"\n\nProven guidelines from our knowledge base — apply them:\n{guidelines}"

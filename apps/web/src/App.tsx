@@ -4,11 +4,12 @@ import {
   Cake, Camera, Coffee, Dumbbell, Flower, Flower2, GraduationCap,
   PawPrint, Scissors, Sofa, UtensilsCrossed, Wrench,
 } from "lucide-react";
+import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { auth, googleProvider } from "./firebase";
 import { authFetch, idToken, setAuthUser } from "./api";
 import ConfirmModal from "./ConfirmModal";
-import { IconArrowUp, IconChevronDown, IconGlobe, IconStop } from "./icons";
+import { IconArrowUp, IconChevronDown, IconCopy, IconGlobe, IconRetry, IconStop } from "./icons";
 import Preview, { type Draft } from "./Preview";
 import Sidebar, { type ChatMeta } from "./Sidebar";
 import Thinking, { type ThinkBlock } from "./Thinking";
@@ -18,7 +19,15 @@ type Msg = {
   text: string;
   thinking?: ThinkBlock[];
   attachment?: "site";
+  error?: boolean; // failed turn — rendered as a card with retry
 };
+
+/** All agent markdown flows through here: parsed once, sanitized always.
+ *  marked passes raw HTML straight through — never trust model output
+ *  (or rehydrated history) inside the app origin. */
+function md(text: string): string {
+  return DOMPurify.sanitize(marked.parse(text, { async: false }) as string);
+}
 
 const PHASE_LABEL: Record<string, string> = {
   thinking: "Thinking…",
@@ -112,6 +121,8 @@ export default function App() {
     });
   }
   const abortRef = useRef<AbortController | null>(null);
+  const activeThread = useRef<string | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -208,6 +219,8 @@ export default function App() {
   );
 
   const openThread = useCallback(async (id: string) => {
+    activeThread.current = id;
+    abortRef.current?.abort(); // navigating away stops the visible stream
     setThread(id);
     setPhase(null);
     setStreamText("");
@@ -222,6 +235,7 @@ export default function App() {
     ]);
     // the site artifact belongs to the message that produced it — on
     // restore, that's the thread's last agent message (older schema rows)
+    if (activeThread.current !== id) return; // user already moved on
     const hasDraft = d?.pages && Object.keys(d.pages).length;
     const msgs_: Msg[] = page.items;
     if (hasDraft && !msgs_.some((m) => m.attachment === "site")) {
@@ -258,9 +272,9 @@ export default function App() {
     if (!el || !thread || !msgsCursor || loadingOlder.current) return;
     loadingOlder.current = true;
     try {
-      const page = await fetch(
+      const page = await authFetch(
         `/agent/chats/${thread}/messages?cursor=${msgsCursor}`,
-      ).then((r) => r.json());
+      ).then((r) => (r.ok ? r.json() : { items: [], next_cursor: msgsCursor }));
       const prevHeight = el.scrollHeight;
       setMsgs((m) => [...page.items, ...m]);
       setMsgsCursor(page.next_cursor);
@@ -311,6 +325,9 @@ export default function App() {
   function newChat() {
     // no API call — the thread is created on the FIRST message, so an
     // abandoned "new chat" never leaves an empty row in the sidebar
+    activeThread.current = null;
+    abortRef.current?.abort();
+    setMsgsCursor(null);
     setThread(null);
     setMsgs([]);
     setDraft(null);
@@ -332,16 +349,22 @@ export default function App() {
         body: JSON.stringify({ uid: user.uid }),
       }).then((r) => r.json());
       tid = created.thread_id;
+      activeThread.current = tid;
       setThread(tid);
       history.pushState(null, "", `#/c/${tid}`);
       loadChats(user); // the row appears in the sidebar NOW, titled later
     }
 
     const text = raw.trim();
+    const myTid = tid; // everything below is scoped to THIS thread
     setInput("");
+    if (composerRef.current) composerRef.current.style.height = "auto";
     setMsgs((m) => [...m, { role: "user", text }]);
+    setAtBottom(true);
+    requestAnimationFrame(scrollToBottom); // your own message never lands off-screen
     setBusy(true);
     setSuggestions([]);
+    const onThread = () => activeThread.current === myTid || activeThread.current === null && myTid === thread;
 
     // plain variables survive the read loop; state exists only to render
     let acc = "";
@@ -387,6 +410,7 @@ export default function App() {
                 ? m // guard: never render the same agent message twice in a row
                 : [...m, msg],
             );
+          if (!onThread()) continue; // user navigated away — drop late events
           if (type === "token") {
             acc += data.text;
             setStreamText(acc);
@@ -431,10 +455,12 @@ export default function App() {
           }
         }
       }
-      if (finished && tid) {
+      if (finished && tid && onThread()) {
         const d = await authFetch(`/agent/draft/${tid}`).then((r) => r.json());
-        setDraft(d);
-        setPreviewOpen(true); // a fresh draft presents itself
+        if (onThread()) {
+          setDraft(d);
+          setPreviewOpen(true); // a fresh draft presents itself
+        }
       }
       await loadChats(user);
     } catch (e) {
@@ -450,12 +476,9 @@ export default function App() {
             },
           ]);
         }
-      } else {
+      } else if (onThread()) {
         const msg = e instanceof Error ? e.message : String(e);
-        const hint = msg.startsWith("agent said") || msg.includes("fetch")
-          ? " — is the agent running on :8001?"
-          : "";
-        setMsgs((m) => [...m, { role: "agent", text: `⚠️ ${msg}${hint}` }]);
+        setMsgs((m) => [...m, { role: "agent", text: msg, error: true }]);
       }
     } finally {
       abortRef.current = null;
@@ -463,7 +486,36 @@ export default function App() {
       setThinks([]);
       setBusy(false);
       setPhase(null);
+      composerRef.current?.focus();
     }
+  }
+
+  // last user message — powers retry after an error and regenerate
+  function lastUserText(): string {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "user") return msgs[i].text;
+    }
+    return "";
+  }
+
+  function retryLast() {
+    const text = lastUserText();
+    if (!text) return;
+    // drop the trailing error/agent turn, resend the same user message
+    setMsgs((m) => {
+      const copy = [...m];
+      while (copy.length && copy[copy.length - 1].role === "agent") copy.pop();
+      if (copy.length && copy[copy.length - 1].role === "user") copy.pop();
+      return copy;
+    });
+    send(text);
+  }
+
+  async function copyText(text: string, e: React.MouseEvent<HTMLButtonElement>) {
+    await navigator.clipboard.writeText(text);
+    const btn = e.currentTarget;
+    btn.classList.add("copied");
+    setTimeout(() => btn.classList.remove("copied"), 1400);
   }
 
   function stopStream() {
@@ -567,13 +619,38 @@ export default function App() {
           {msgs.map((m, i) =>
             m.role === "user" ? (
               <div key={i} className="bubble user">{m.text}</div>
+            ) : m.error ? (
+              <div key={i} className="msg-error" role="alert">
+                <span>{m.text}</span>
+                <button className="retry-btn" onClick={retryLast}>Retry</button>
+              </div>
             ) : (
               <div key={i} className="agent-turn">
                 {m.thinking && <Thinking blocks={m.thinking} />}
                 <div
                   className="agent-md"
-                  dangerouslySetInnerHTML={{ __html: marked.parse(m.text, { async: false }) as string }}
+                  dangerouslySetInnerHTML={{ __html: md(m.text) }}
                 />
+                <div className="msg-actions">
+                  <button
+                    className="icon-btn"
+                    aria-label="Copy message"
+                    data-tip="Copy"
+                    onClick={(e) => copyText(m.text, e)}
+                  >
+                    <IconCopy />
+                  </button>
+                  {i === msgs.length - 1 && !busy && (
+                    <button
+                      className="icon-btn"
+                      aria-label="Regenerate response"
+                      data-tip="Regenerate"
+                      onClick={retryLast}
+                    >
+                      <IconRetry />
+                    </button>
+                  )}
+                </div>
                 {m.attachment === "site" && draft && (
                   <button className="site-card" onClick={() => setPreviewOpen((o) => !o)}>
                     <span className="site-card-ico"><IconGlobe /></span>
@@ -592,11 +669,11 @@ export default function App() {
           {streamText && (
             <div
               className="agent-md streaming"
-              dangerouslySetInnerHTML={{ __html: marked.parse(streamText, { async: false }) as string }}
+              dangerouslySetInnerHTML={{ __html: md(streamText) }}
             />
           )}
           {busy && !streamText && thinks.length === 0 && (
-            <div className="working-row">
+            <div className="working-row" role="status" aria-live="polite">
               <span className="shimmer">
                 {(phase && PHASE_LABEL[phase]) || "Thinking…"}
               </span>
@@ -620,15 +697,27 @@ export default function App() {
         )}
 
         <footer className="composer">
-          <input
+          <textarea
+            ref={composerRef}
+            rows={1}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder={busy ? "Working…" : "Describe your business…"}
-            disabled={busy}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px";
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                if (!busy) send();
+              }
+              if (e.key === "Escape" && busy) stopStream();
+            }}
+            placeholder={busy ? "Streaming… (Esc to stop)" : "Describe your business…"}
+            aria-label="Message SiteForge"
           />
           {busy ? (
-            <button className="round-action stop" onClick={stopStream} data-tip="Stop generating">
+            <button className="round-action stop" onClick={stopStream} aria-label="Stop generating" data-tip="Stop generating">
               <IconStop />
             </button>
           ) : (

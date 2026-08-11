@@ -548,6 +548,8 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
         conn.commit()
     _save_message(body.thread_id, "user", body.message)
 
+    unsaved = {"answer": "", "thinks": []}  # mirror of what's on screen
+
     def events():
         try:
             yield from run_events()
@@ -560,7 +562,16 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
                 )
             else:
                 friendly = f"The agent hit an error: {text[:200]}"
+            _save_message(body.thread_id, "agent", friendly)
             yield f"event: error\ndata: {json.dumps({'message': friendly})}\n\n"
+        finally:
+            # client disconnect or mid-run failure: text the user already
+            # watched stream must exist in history when they reload
+            if unsaved["answer"]:
+                _save_message(
+                    body.thread_id, "agent", unsaved["answer"],
+                    thinking=unsaved["thinks"] or None,
+                )
 
     def run_events():
         # two stream modes multiplexed: "messages" gives token-by-token LLM
@@ -589,6 +600,7 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
                     continue
                 if node == "respond":
                     answer_acc += msg_chunk.content
+                    unsaved["answer"] = answer_acc
                     yield f"event: token\ndata: {json.dumps({'text': msg_chunk.content})}\n\n"
                 else:
                     if think_acc and think_acc[-1]["node"] == node:
@@ -597,6 +609,7 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
                         think_acc.append(
                             {"node": node, "label": NODE_LABELS.get(node, node), "text": msg_chunk.content}
                         )
+                    unsaved["thinks"] = think_acc
                     payload = {
                         "node": node,
                         "label": NODE_LABELS.get(node, node),
@@ -612,6 +625,7 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
                 # (no tokens exist), so it ships whole.
                 if node_name == "respond" and answer_acc:
                     _save_message(body.thread_id, "agent", answer_acc, thinking=think_acc or None)
+                    unsaved["answer"] = ""
                     last_reply = answer_acc
                     answer_acc = ""
                     think_acc = []
@@ -630,11 +644,6 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
 
         final = graph.get_state(config).values
 
-        # quick replies grounded in the agent's answer — computed in the BE
-        chips = _suggestions(final, last_reply)
-        if chips:
-            yield f"event: suggestions\ndata: {json.dumps({'items': chips})}\n\n"
-
         snapshot = {
             "phase": final.get("phase"),
             "brief": final.get("brief", {}),
@@ -643,6 +652,12 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
             "score": final.get("critique", {}).get("score"),
         }
         yield f"event: done\ndata: {json.dumps(snapshot)}\n\n"
+
+        # AFTER done: the UI is settled — chips and the title are bonuses
+        # (each an LLM call), never blockers on a finished answer
+        chips = _suggestions(final, last_reply)
+        if chips:
+            yield f"event: suggestions\ndata: {json.dumps({'items': chips})}\n\n"
 
         _ensure_title(body.thread_id, body.message)
 

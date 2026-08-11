@@ -29,7 +29,17 @@ def embedder():
 
 
 def embed(texts: list[str]) -> list[list[float]]:
+    """Passage-side embeddings — ingestion only."""
     return [list(map(float, v)) for v in embedder().embed(texts)]
+
+
+@lru_cache(maxsize=256)
+def embed_query(text: str) -> tuple[float, ...]:
+    """Query-side embeddings. bge models expect the query instruction
+    prefix (fastembed's query_embed adds it) — embedding queries
+    passage-style measurably degrades short-query retrieval. Cached:
+    the same brief drives several retrievals per generation."""
+    return tuple(map(float, next(iter(embedder().query_embed([text])))))
 
 
 def _vec(v: list[float]) -> str:
@@ -46,6 +56,11 @@ def setup() -> None:
                 content   text NOT NULL,
                 embedding vector({EMBED_DIM}) NOT NULL
             )""")
+        # seq-scan is fine at 71 rows; the platinum flywheel grows unbounded
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS ix_rag_hnsw ON rag_chunks "
+            "USING hnsw (embedding vector_cosine_ops)"
+        )
         conn.commit()
 
 
@@ -66,7 +81,7 @@ def replace_source(source: str, chunks: list[str]) -> int:
 def search(query: str, k: int = 3, exclude: str = "") -> list[dict]:
     """exclude: source prefix to skip — e.g. 'platinum-' keeps the flywheel's
     own outputs from drowning out the curated craft on design queries."""
-    qvec = _vec(embed([query])[0])
+    qvec = _vec(list(embed_query(query)))
     sql = "SELECT source, content, 1 - (embedding <=> %s::vector) AS score FROM rag_chunks"
     params: list = [qvec]
     if exclude:

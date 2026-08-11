@@ -52,16 +52,49 @@ def discover_sites() -> list[str]:
     ]
 
 
-def promote_to_platinum(url: str, html: str) -> None:
-    """The flywheel: excellent pages become RAG knowledge."""
+def promote_to_platinum(url: str, html: str, avg_score: float) -> None:
+    """The flywheel: excellent pages become RAG knowledge.
+
+    Prefer the STRUCTURED source of truth — the mirrored draft in
+    site_versions holds clean per-page markdown and the design spec.
+    Stripped live HTML (nav soup, footer noise) is only the fallback."""
+    import json as _json
     import re
 
-    text = re.sub(r"<[^>]+>", " ", html)
-    text = re.sub(r"\s+", " ", text).strip()[:1200]
+    import psycopg
+
     slug = url.replace("https://", "").split(".")[0]
+    chunks: list[str] = []
+    try:
+        db = os.environ.get(
+            "DATABASE_URL", "postgresql://siteforge:siteforge_dev@localhost:5432/siteforge"
+        )
+        with psycopg.connect(db) as conn:
+            row = conn.execute(
+                """SELECT sv.spec, sv.pages FROM sites s
+                   JOIN site_versions sv ON sv.id = s.current_version_id
+                   ORDER BY sv.created_at DESC LIMIT 1"""
+            ).fetchone()
+        if row:
+            spec = row[0] if isinstance(row[0], dict) else _json.loads(row[0])
+            pages = row[1] if isinstance(row[1], dict) else _json.loads(row[1])
+            biz = spec.get("site_name", slug)
+            for path, md_copy in list(pages.items())[:3]:
+                head = md_copy.strip()[:700]
+                chunks.append(
+                    f"## Proven page — {biz} {path} (judge {avg_score}/10)\n{head}"
+                )
+    except Exception:
+        pass
+
+    if not chunks:  # fallback: the old stripped-HTML representation
+        text = re.sub(r"<[^>]+>", " ", html)
+        text = re.sub(r"\s+", " ", text).strip()[:1200]
+        chunks = [f"## Proven example ({slug})\n{text}"]
+
     requests.post(
         f"{RAG_URL}/rag/ingest",
-        json={"source": f"platinum-{slug}", "chunks": [f"## Proven example ({slug})\n{text}"]},
+        json={"source": f"platinum-{slug}", "chunks": chunks},
         timeout=30,
     )
 
@@ -88,6 +121,6 @@ def run():
 
         avg = sum(r["score"] for r in results) / max(len(results), 1)
         if avg >= PLATINUM_THRESHOLD:
-            promote_to_platinum(url, html)
+            promote_to_platinum(url, html, round(avg, 2))
         report.append({"site": url, "avg_score": round(avg, 2), "checks": len(results)})
     return {"evaluated": report}

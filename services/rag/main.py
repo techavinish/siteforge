@@ -6,7 +6,7 @@ Cloud Run ingress will restrict it later)."""
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 import store
@@ -33,7 +33,11 @@ class IngestIn(BaseModel):
 
 @app.post("/rag/ingest")
 def ingest(body: IngestIn):
-    """Used by the eval flywheel to promote platinum examples."""
+    """Used by the eval flywheel to promote platinum examples. Curated
+    corpus sources are only writable via ingest.py — the HTTP surface
+    must never be able to clobber them."""
+    if not body.source.startswith("platinum-"):
+        raise HTTPException(status_code=403, detail="only platinum- sources")
     n = store.replace_source(body.source, body.chunks)
     return {"ingested": n}
 

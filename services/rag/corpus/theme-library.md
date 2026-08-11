@@ -1,141 +1,60 @@
-# Professional theme library (palette + type seeds)
+# Website theme seeds — inspiration, never verbatim
 
-## Theme seed: arctic frost
-# Arctic Frost
-A cool and crisp winter-inspired theme that conveys clarity, precision, and professionalism.
-## Color Palette
-- **Ice Blue**: `#d4e4f7` - Light backgrounds and highlights
-- **Steel Blue**: `#4a6fa5` - Primary accent color
-- **Silver**: `#c0c0c0` - Metallic accent elements
-- **Crisp White**: `#fafafa` - Clean backgrounds and text
-## Typography
-- **Headers**: DejaVu Sans Bold
-- **Body Text**: DejaVu Sans
-## Best Used For
-Healthcare presentations, technology solutions, winter sports, clean tech, pharmaceutical content.
+## Theme seed: Arctic Frost — cool precision
+Palette: ice blue #d4e4f7 background tint, steel blue #4a6fa5 accent, crisp
+white #fafafa surfaces, slate ink #2b3440. Fonts: Sora headings, Inter body.
+Feels clinical and trustworthy. Suits: clinics, dental, tech services,
+cleaning companies, winter sports.
 
-## Theme seed: botanical garden
-# Botanical Garden
-A fresh and organic theme featuring vibrant garden-inspired colors for lively presentations.
-## Color Palette
-- **Fern Green**: `#4a7c59` - Rich natural green
-- **Marigold**: `#f9a620` - Bright floral accent
-- **Terracotta**: `#b7472a` - Earthy warm tone
-- **Cream**: `#f5f3ed` - Soft neutral backgrounds
-## Typography
-- **Headers**: DejaVu Serif Bold
-- **Body Text**: DejaVu Sans
-## Best Used For
-Garden centers, food presentations, farm-to-table content, botanical brands, natural products.
+## Theme seed: Botanical Garden — living green
+Palette: sage #e7efe4 background, deep fern #3e6b4a accent, cream surface
+#f7f7f2, moss ink #26332a. Fonts: Lora headings, Karla body. Calm, organic,
+alive. Suits: yoga studios, spas, florists, organic food, garden services.
 
-## Theme seed: desert rose
-# Desert Rose
-A soft and sophisticated theme with dusty, muted tones perfect for elegant presentations.
-## Color Palette
-- **Dusty Rose**: `#d4a5a5` - Soft primary color
-- **Clay**: `#b87d6d` - Earthy accent
-- **Sand**: `#e8d5c4` - Warm neutral backgrounds
-- **Deep Burgundy**: `#5d2e46` - Rich dark contrast
-## Typography
-- **Headers**: FreeSans Bold
-- **Body Text**: FreeSans
-## Best Used For
-Fashion presentations, beauty brands, wedding planning, interior design, boutique businesses.
+## Theme seed: Desert Rose — warm boutique
+Palette: blush #f6e8e4 background, terracotta-rose #c1666b accent against
+cool slate ink #3a3d45 (never espresso), sand surface #efe0d8. Fonts:
+Cormorant Garamond headings, Nunito Sans body. Romantic but grounded.
+Suits: salons, boutiques, wedding services, jewellery.
 
-## Theme seed: forest canopy
-# Forest Canopy
-A natural and grounded theme featuring earth tones inspired by dense forest environments.
-## Color Palette
-- **Forest Green**: `#2d4a2b` - Primary dark green
-- **Sage**: `#7d8471` - Muted green accent
-- **Olive**: `#a4ac86` - Light accent color
-- **Ivory**: `#faf9f6` - Backgrounds and text
-## Typography
-- **Headers**: FreeSerif Bold
-- **Body Text**: FreeSans
-## Best Used For
-Environmental presentations, sustainability reports, outdoor brands, wellness content, organic products.
+## Theme seed: Forest Canopy — premium outdoors
+Palette: bone #f2f1ec background, deep green #1f4d3a accent, amber highlight
+#c98a2d, charcoal ink #23292b. Fonts: Space Grotesk headings, IBM Plex Sans
+body. Filson/Patagonia energy. Suits: outdoor gear, adventure tours,
+craft workshops, premium coffee.
 
-## Theme seed: golden hour
-# Golden Hour
-A rich and warm autumnal palette that creates an inviting and sophisticated atmosphere.
-## Color Palette
-- **Mustard Yellow**: `#f4a900` - Bold primary accent
-- **Terracotta**: `#c1666b` - Warm secondary color
-- **Warm Beige**: `#d4b896` - Neutral backgrounds
-- **Chocolate Brown**: `#4a403a` - Dark text and anchors
-## Typography
-- **Headers**: FreeSans Bold
-- **Body Text**: FreeSans
-## Best Used For
-Restaurant presentations, hospitality brands, fall campaigns, cozy lifestyle content, artisan products.
+## Theme seed: Golden Hour — warm energy
+Palette: warm white #fdf9f0 background, mustard #f4a900 accent, burnt
+sienna secondary #b65c32, deep brown ink #33281c. Fonts: Poppins headings,
+Source Sans 3 body. Optimistic and appetizing. Suits: bakeries, brunch
+cafes, juice bars, kids services.
 
-## Theme seed: midnight galaxy
-# Midnight Galaxy
-A dramatic and cosmic theme with deep purples and mystical tones for impactful presentations.
-## Color Palette
-- **Deep Purple**: `#2b1e3e` - Rich dark base
-- **Cosmic Blue**: `#4a4e8f` - Mystical mid-tone
-- **Lavender**: `#a490c2` - Soft accent color
-- **Silver**: `#e6e6fa` - Light highlights and text
-## Typography
-- **Headers**: FreeSans Bold
-- **Body Text**: FreeSans
-## Best Used For
-Entertainment industry, gaming presentations, nightlife venues, luxury brands, creative agencies.
+## Theme seed: Midnight Galaxy — dark statement
+Palette: near-black #14121c background, electric violet #7c5cff accent,
+starlight ink #ece9f4, panel #1d1a28. Fonts: Space Grotesk headings, Inter
+body. Only for brands that genuinely live at night. Suits: bars, clubs,
+gaming lounges, tattoo studios, music venues.
 
-## Theme seed: modern minimalist
-# Modern Minimalist
-A clean and contemporary theme with a sophisticated grayscale palette for maximum versatility.
-## Color Palette
-- **Charcoal**: `#36454f` - Primary dark color
-- **Slate Gray**: `#708090` - Medium gray for accents
-- **Light Gray**: `#d3d3d3` - Backgrounds and dividers
-- **White**: `#ffffff` - Text and clean backgrounds
-## Typography
-- **Headers**: DejaVu Sans Bold
-- **Body Text**: DejaVu Sans
-## Best Used For
-Tech presentations, architecture portfolios, design showcases, modern business proposals, data visualization.
+## Theme seed: Modern Minimalist — monochrome discipline
+Palette: off-white #f8f8f7 background, off-black ink #1a1a1a, one saturated
+pop accent (electric blue #2456f0 or emerald #0e8f62), hairline gray lines.
+Fonts: Sora headings, Inter body. Precision over decoration. Suits:
+architects, interior designers, consultants, photographers.
 
-## Theme seed: ocean depths
-# Ocean Depths
-A professional and calming maritime theme that evokes the serenity of deep ocean waters.
-## Color Palette
-- **Deep Navy**: `#1a2332` - Primary background color
-- **Teal**: `#2d8b8b` - Accent color for highlights and emphasis
-- **Seafoam**: `#a8dadc` - Secondary accent for lighter elements
-- **Cream**: `#f1faee` - Text and light backgrounds
-## Typography
-- **Headers**: DejaVu Sans Bold
-- **Body Text**: DejaVu Sans
-## Best Used For
-Corporate presentations, financial reports, professional consulting decks, trust-building content.
+## Theme seed: Ocean Depths — calm authority
+Palette: pale foam #eef4f5 background, deep teal #12606b accent, navy ink
+#1c2b33, sand highlight #d9c9a3. Fonts: Montserrat headings, Nunito Sans
+body. Steady and competent. Suits: physiotherapy, finance, legal, swim
+schools, marine businesses.
 
-## Theme seed: sunset boulevard
-# Sunset Boulevard
-A warm and vibrant theme inspired by golden hour sunsets, perfect for energetic and creative presentations.
-## Color Palette
-- **Burnt Orange**: `#e76f51` - Primary accent color
-- **Coral**: `#f4a261` - Secondary warm accent
-- **Warm Sand**: `#e9c46a` - Highlighting and backgrounds
-- **Deep Purple**: `#264653` - Dark contrast and text
-## Typography
-- **Headers**: DejaVu Serif Bold
-- **Body Text**: DejaVu Sans
-## Best Used For
-Creative pitches, marketing presentations, lifestyle brands, event promotions, inspirational content.
+## Theme seed: Sunset Boulevard — bold retro heat
+Palette: warm cream #fff6ec background, hot coral #ff5a5f accent, dusk
+purple secondary #6d3b8e, deep plum ink #35203b. Fonts: Poppins headings,
+Karla body. Loud and friendly. Suits: street food, food trucks, youth
+fashion, event planners.
 
-## Theme seed: tech innovation
-# Tech Innovation
-A bold and modern theme with high-contrast colors perfect for cutting-edge technology presentations.
-## Color Palette
-- **Electric Blue**: `#0066ff` - Vibrant primary accent
-- **Neon Cyan**: `#00ffff` - Bright highlight color
-- **Dark Gray**: `#1e1e1e` - Deep backgrounds
-- **White**: `#ffffff` - Clean text and contrast
-## Typography
-- **Headers**: DejaVu Sans Bold
-- **Body Text**: DejaVu Sans
-## Best Used For
-Tech startups, software launches, innovation showcases, AI/ML presentations, digital transformation content.
+## Theme seed: Tech Innovation — cold luxury
+Palette: silver-grey #f1f3f5 background, chrome-blue #3d6fe8 accent, smoke
+surface #e4e8ec, graphite ink #23272d. Fonts: Space Grotesk headings, IBM
+Plex Sans body. Apple-adjacent restraint. Suits: SaaS, repair services,
+electronics, automotive detailing.
