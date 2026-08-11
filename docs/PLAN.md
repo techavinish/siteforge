@@ -29,7 +29,15 @@
 - [x] `pick_images` — illustrate node (deterministic, Pexels) between plan and write; hero photo per page in render.py
 - [x] Drafts mirror into `users`/`projects`/`sites`/`site_versions` on deliver (append-only versions)
 
-**→ P4 COMPLETE. Next: P5 — Temporal.**
+**→ P4 COMPLETE.**
+
+## Final tail (2026-08-11) — all pending closed
+
+- [x] Contact forms that work: formsubmit.co injected on contact pages when the owner's email is known
+- [x] rag + mcp on Cloud Run (model baked into the rag image; corpus in Cloud SQL pgvector; hosted agent wired to cloud RAG) — remote MCP verified from an internet client
+- [x] Grafana: ClickHouse datasource + gold-layer dashboard provisioned as code
+- [x] DeepEval + Ragas scripts (`scripts/evals/`) — need paid OpenRouter credits to execute
+- Deliberately local (documented): Temporal server + worker + eval service — moving them cloud-side requires Temporal Cloud + ClickHouse Cloud; the seams are ready
 
 ## Key decisions (and why)
 
