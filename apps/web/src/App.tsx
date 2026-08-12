@@ -602,6 +602,72 @@ export default function App() {
 
   const showPreview = Boolean(draft) && previewOpen;
 
+  // one composer, two homes: centered in the welcome stage before the
+  // first message, docked at the bottom once a conversation exists
+  const composerEl = (
+    <footer className="composer">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+        hidden
+        onChange={(e) => {
+          pickLogo(e.target.files?.[0]);
+          e.target.value = ""; // same file re-picked still fires change
+        }}
+      />
+      <button
+        className="icon-btn clip"
+        aria-label="Attach your logo"
+        data-tip="Attach your logo"
+        onClick={() => fileRef.current?.click()}
+      >
+        <IconClip />
+      </button>
+      {pendingLogo && (
+        <span className="attach-chip">
+          <img src={pendingLogo.dataUrl} alt="" />
+          {pendingLogo.name}
+          <button aria-label="Remove logo" onClick={() => setPendingLogo(null)}><IconX /></button>
+        </span>
+      )}
+      <textarea
+        ref={composerRef}
+        rows={1}
+        autoFocus
+        value={input}
+        onChange={(e) => {
+          setInput(e.target.value);
+          e.target.style.height = "auto";
+          e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px";
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            if (!busy) send();
+          }
+          if (e.key === "Escape" && busy) stopStream();
+        }}
+        placeholder={busy ? "Streaming… (Esc to stop)" : "Describe your business…"}
+        aria-label="Message SiteForge"
+      />
+      {busy ? (
+        <button className="round-action stop" onClick={stopStream} aria-label="Stop generating" data-tip="Stop generating">
+          <IconStop />
+        </button>
+      ) : (
+        <button
+          className="round-action send"
+          onClick={() => send()}
+          disabled={!input.trim() && !pendingLogo}
+          aria-label="Send message"
+        >
+          <IconArrowUp />
+        </button>
+      )}
+    </footer>
+  );
+
   return (
     <div className={showPreview ? (previewWide ? "workspace three wide" : "workspace three") : "workspace two"}>
       <Sidebar
@@ -637,15 +703,10 @@ export default function App() {
       )}
 
       <main className="chat-shell">
-        <div className="chat-top" title={chats.find((c) => c.thread_id === thread)?.title}>
-          {thread ? chats.find((c) => c.thread_id === thread)?.title ?? "…" : "New chat"}
-        </div>
-        <section
-          className={positioning ? "chat positioning" : "chat"}
-          ref={chatRef}
-          onScroll={onChatScroll}
-        >
-          {msgs.length === 0 && (
+        {onWelcome ? (
+          // the welcome moment: headline, composer, and starters as ONE
+          // centered group — nothing docked, no header over an empty page
+          <div className="welcome-stage">
             <div className="hero-empty">
               <h2>
                 Let's build <span className="type-word">{typed}</span>
@@ -655,16 +716,27 @@ export default function App() {
                 One sentence about your business — I'll design it, write it,
                 and put it live. In minutes.
               </p>
-              <div className="chips">
-                {starters.map((s) => (
-                  <button key={s.label} className="chip" onClick={() => send(s.prompt)}>
-                    <span className="chip-ico"><s.icon size={14} strokeWidth={1.9} /></span>
-                    {s.label}
-                  </button>
-                ))}
-              </div>
             </div>
-          )}
+            {composerEl}
+            <div className="chips">
+              {starters.map((s) => (
+                <button key={s.label} className="chip" onClick={() => send(s.prompt)}>
+                  <span className="chip-ico"><s.icon size={14} strokeWidth={1.9} /></span>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+        <>
+        <div className="chat-top" title={chats.find((c) => c.thread_id === thread)?.title}>
+          {thread ? chats.find((c) => c.thread_id === thread)?.title ?? "…" : "New chat"}
+        </div>
+        <section
+          className={positioning ? "chat positioning" : "chat"}
+          ref={chatRef}
+          onScroll={onChatScroll}
+        >
           {msgs.map((m, i) =>
             m.role === "user" ? (
               <div key={i} className="bubble user">{m.text}</div>
@@ -745,66 +817,9 @@ export default function App() {
           </div>
         )}
 
-        <footer className="composer">
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/png,image/jpeg,image/svg+xml,image/webp"
-            hidden
-            onChange={(e) => {
-              pickLogo(e.target.files?.[0]);
-              e.target.value = ""; // same file re-picked still fires change
-            }}
-          />
-          <button
-            className="icon-btn clip"
-            aria-label="Attach your logo"
-            data-tip="Attach your logo"
-            onClick={() => fileRef.current?.click()}
-          >
-            <IconClip />
-          </button>
-          {pendingLogo && (
-            <span className="attach-chip">
-              <img src={pendingLogo.dataUrl} alt="" />
-              {pendingLogo.name}
-              <button aria-label="Remove logo" onClick={() => setPendingLogo(null)}><IconX /></button>
-            </span>
-          )}
-          <textarea
-            ref={composerRef}
-            rows={1}
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px";
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                if (!busy) send();
-              }
-              if (e.key === "Escape" && busy) stopStream();
-            }}
-            placeholder={busy ? "Streaming… (Esc to stop)" : "Describe your business…"}
-            aria-label="Message SiteForge"
-          />
-          {busy ? (
-            <button className="round-action stop" onClick={stopStream} aria-label="Stop generating" data-tip="Stop generating">
-              <IconStop />
-            </button>
-          ) : (
-            <button
-              className="round-action send"
-              onClick={() => send()}
-              disabled={!input.trim() && !pendingLogo}
-              aria-label="Send message"
-            >
-              <IconArrowUp />
-            </button>
-          )}
-        </footer>
+        {composerEl}
+        </>
+        )}
       </main>
 
       {showPreview && draft && thread && (

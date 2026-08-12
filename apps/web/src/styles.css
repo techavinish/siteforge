@@ -501,10 +501,11 @@ button.primary:disabled { opacity: 0.45; }
 .bubble.working { opacity: 0.7; font-style: italic; animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .bubble.working { animation: none; } }
-/* floating pill composer (claude-style) */
+/* floating pill composer (claude-style) — margin-inline auto so the
+   shorthand can never un-center it from the 780px column again */
 .composer {
   display: flex; gap: 8px; align-items: center;
-  margin: 6px 4px 18px; padding: 7px 7px 7px 20px;
+  margin: 6px auto 18px; padding: 7px 7px 7px 20px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 26px;
   box-shadow: var(--shadow-1);
   transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
@@ -845,6 +846,19 @@ button.primary:disabled { opacity: 0.45; }
   border-radius: var(--r-card); background: var(--accent-soft); color: var(--accent);
 }
 .bk-empty p { margin: 0; font-size: 0.82rem; line-height: 1.6; }
+
+/* ── welcome: headline + composer + starters as one centered group ── */
+.welcome-stage {
+  margin: auto; width: 100%; max-width: 740px;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0 24px 7vh; /* optical center: sit slightly above true middle */
+}
+.welcome-stage .hero-empty { margin: 0 0 26px; }
+.welcome-stage .composer {
+  width: 100%; margin: 0;
+  box-shadow: var(--shadow-2);
+}
+.welcome-stage .chips { margin-top: 26px; }
 
 /* ── composer: staged logo attachment ───────────────────────────── */
 .composer { padding-left: 10px; }
