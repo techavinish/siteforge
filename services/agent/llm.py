@@ -22,12 +22,29 @@ def chat_model(model: str, temperature: float = 0.7) -> ChatOpenAI:
     )
 
 
-def extract_json(text: str) -> dict:
+def text_of(content) -> str:
+    """Model content is a string — until a model returns content BLOCKS
+    (a list of {'type': 'text', ...} parts, seen on several OpenRouter
+    models). Every consumer must flatten before regex/strip/parse."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            part if isinstance(part, str) else str(part.get("text", ""))
+            for part in content
+            if isinstance(part, (str, dict))
+        )
+    return str(content or "")
+
+
+def extract_json(text) -> dict:
     """Free models don't support strict JSON mode — parse defensively.
 
-    Handles plain JSON, ```json fences, and JSON embedded in prose.
-    Raises ValueError if nothing parseable is found (caller decides policy).
+    Handles plain JSON, ```json fences, JSON embedded in prose, and
+    list-shaped content blocks. Raises ValueError if nothing parseable
+    is found (caller decides policy).
     """
+    text = text_of(text)
     fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     if fenced:
         return json.loads(fenced.group(1))

@@ -253,7 +253,7 @@ def _suggestions(state: dict, last_reply: str = "") -> list[str]:
             import re as _re
 
             from config import INTERVIEW_MODEL
-            from llm import chat_model
+            from llm import chat_model, text_of
 
             r = chat_model(INTERVIEW_MODEL, temperature=0.4).invoke([
                 ("system",
@@ -263,8 +263,9 @@ def _suggestions(state: dict, last_reply: str = "") -> list[str]:
                  'Reply with ONLY a JSON array of 3 strings.'),
                 ("user", last_reply),
             ])
-            m = _re.search(r"\[.*\]", r.content, _re.DOTALL)
-            items = _json.loads(m.group(0) if m else r.content)
+            content = text_of(r.content)
+            m = _re.search(r"\[.*\]", content, _re.DOTALL)
+            items = _json.loads(m.group(0) if m else content)
             if isinstance(items, list) and items:
                 return [str(s)[:48] for s in items[:4]]
         except Exception:
@@ -367,13 +368,13 @@ def _ensure_title(thread_id: str, first_message: str) -> None:
         return
     try:
         from config import INTERVIEW_MODEL
-        from llm import chat_model
+        from llm import chat_model, text_of
 
         r = chat_model(INTERVIEW_MODEL, temperature=0.2).invoke([
             ("system", "Write a 2-5 word title for a conversation that starts with the user message. Reply with ONLY the title. No quotes, no punctuation at the end."),
             ("user", first_message),
         ])
-        title = r.content.strip().strip('"').strip() or first_message
+        title = text_of(r.content).strip().strip('"').strip() or first_message
     except Exception:
         title = first_message
     with psycopg.connect(DATABASE_URL) as conn:
@@ -410,12 +411,15 @@ def chat_messages(thread_id: str, cursor: str = "", limit: int = 50, uid: str = 
         }
 
     # threads older than the messages table: fall back to checkpointer state
+    from llm import text_of
+
     state = graph.get_state({"configurable": {"thread_id": thread_id}}).values
     out = []
     for m in state.get("messages", []):
         role = "user" if m.type == "human" else "agent"
-        if m.content:
-            out.append({"role": role, "text": m.content, "thinking": None, "attachment": None})
+        text = text_of(m.content)
+        if text:
+            out.append({"role": role, "text": text, "thinking": None, "attachment": None})
     return {"items": out, "next_cursor": None}
 
 
@@ -813,24 +817,27 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
             if mode == "messages":
                 msg_chunk, meta = chunk
                 node = meta.get("langgraph_node")
-                if not getattr(msg_chunk, "content", None):
+                from llm import text_of
+
+                piece = text_of(getattr(msg_chunk, "content", None))
+                if not piece:
                     continue
                 if node == "respond":
-                    answer_acc += msg_chunk.content
+                    answer_acc += piece
                     unsaved["answer"] = answer_acc
-                    yield f"event: token\ndata: {json.dumps({'text': msg_chunk.content})}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': piece})}\n\n"
                 else:
                     if think_acc and think_acc[-1]["node"] == node:
-                        think_acc[-1]["text"] += msg_chunk.content
+                        think_acc[-1]["text"] += piece
                     else:
                         think_acc.append(
-                            {"node": node, "label": NODE_LABELS.get(node, node), "text": msg_chunk.content}
+                            {"node": node, "label": NODE_LABELS.get(node, node), "text": piece}
                         )
                     unsaved["thinks"] = think_acc
                     payload = {
                         "node": node,
                         "label": NODE_LABELS.get(node, node),
-                        "text": msg_chunk.content,
+                        "text": piece,
                     }
                     yield f"event: thinking\ndata: {json.dumps(payload)}\n\n"
                 continue

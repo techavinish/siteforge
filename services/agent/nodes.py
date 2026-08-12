@@ -8,7 +8,7 @@ separation is the entire point of LangGraph over a freeform agent loop.
 from langchain_core.messages import AIMessage, SystemMessage
 
 from config import INTERVIEW_MODEL, WRITER_MODEL
-from llm import chat_model, extract_json
+from llm import chat_model, extract_json, text_of
 from state import AgentState
 
 REQUIRED_BRIEF_FIELDS = [
@@ -132,7 +132,7 @@ def respond(state: AgentState) -> dict:
             f"Requested change type: {state.get('edit_target', 'none')}"
         )]
     )
-    return {"messages": [AIMessage(result.content)], "phase": "interviewing"}
+    return {"messages": [AIMessage(text_of(result.content))], "phase": "interviewing"}
 
 
 PLAN_SYSTEM = """You are an award-winning design director planning a small-business
@@ -364,7 +364,7 @@ def write(state: AgentState) -> dict:
         if guidelines:
             system += f"\n\nProven guidelines from our knowledge base — apply them:\n{guidelines}"
         result = model.invoke([SystemMessage(system), ("user", prompt)])
-        pages[page["path"]] = result.content
+        pages[page["path"]] = text_of(result.content)
     return {"pages": pages, "phase": "writing"}
 
 
@@ -433,7 +433,7 @@ def write_page(payload: dict) -> dict:
     if guidelines:
         system += f"\n\nProven guidelines from our knowledge base — apply them:\n{guidelines}"
     result = model.invoke([SystemMessage(system), ("user", prompt)])
-    return {"pages": {page["path"]: result.content}, "phase": "writing"}
+    return {"pages": {page["path"]: text_of(result.content)}, "phase": "writing"}
 
 
 CRITIQUE_SYSTEM = """You are a strict reviewer of small-business website copy.
