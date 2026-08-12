@@ -139,6 +139,8 @@ with psycopg.connect(DATABASE_URL) as _conn:
             created_at timestamptz NOT NULL DEFAULT now()
         )""")
     _conn.execute("CREATE INDEX IF NOT EXISTS ix_bookings_thread ON bookings (thread_id, id DESC)")
+    _conn.execute("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS ip text")
+    _conn.execute("CREATE INDEX IF NOT EXISTS ix_bookings_ip ON bookings (ip, created_at)")
     # owner-uploaded assets (the logo) — small binaries, versioned by upsert
     _conn.execute("""
         CREATE TABLE IF NOT EXISTS assets (
@@ -579,23 +581,35 @@ class BookIn(BaseModel):
 
 
 def _ip_limit(bucket: str, limit: int) -> bool:
-    """Best-effort Redis counter for unauthenticated surfaces. Redis down
-    = allow — a booking lost to our outage is worse than spam."""
+    """Redis counter when REDIS_URL exists; otherwise the limit still
+    HOLDS via Postgres (prod has no Redis yet — 'fail open' there meant
+    the public endpoint had no limit at all)."""
     import datetime
 
-    try:
-        import redis
+    if os.environ.get("REDIS_URL"):
+        try:
+            import redis
 
-        r = redis.Redis.from_url(
-            os.environ.get("REDIS_URL", "redis://localhost:6379"), socket_timeout=2
-        )
-        key = f"book:{bucket}:{datetime.date.today().isoformat()}"
-        count = r.incr(key)
-        if count == 1:
-            r.expire(key, 90000)
-        return count <= limit
+            r = redis.Redis.from_url(os.environ["REDIS_URL"], socket_timeout=2)
+            key = f"book:{bucket}:{datetime.date.today().isoformat()}"
+            count = r.incr(key)
+            if count == 1:
+                r.expire(key, 90000)
+            return count <= limit
+        except Exception:
+            pass  # fall through to the Postgres count
+    kind, _, value = bucket.partition(":")
+    col = "ip" if kind == "ip" else "thread_id"
+    try:
+        with psycopg.connect(DATABASE_URL) as conn:
+            n = conn.execute(
+                f"SELECT count(*) FROM bookings WHERE {col}=%s "
+                "AND created_at > now() - interval '1 day'",
+                (value,),
+            ).fetchone()[0]
+        return n < limit
     except Exception:
-        return True
+        return True  # never lose a booking to our own outage
 
 
 @app.post("/agent/book")
@@ -620,10 +634,10 @@ def book(body: BookIn, request: Request):
         if not exists:
             raise HTTPException(status_code=404, detail="Unknown site")
         conn.execute(
-            "INSERT INTO bookings (thread_id, name, contact, service, message) "
-            "VALUES (%s,%s,%s,%s,%s)",
+            "INSERT INTO bookings (thread_id, name, contact, service, message, ip) "
+            "VALUES (%s,%s,%s,%s,%s,%s)",
             (body.key, name, contact, body.service.strip()[:80] or None,
-             body.message.strip()[:1000] or None),
+             body.message.strip()[:1000] or None, ip),
         )
         conn.commit()
     return {"ok": True}
@@ -728,30 +742,40 @@ def serve_logo(thread_id: str):
 
 
 def _rate_limit(uid: str) -> None:
-    """Per-user daily message cap in Redis (design-review cost guardrail).
-    Redis down = no limiting, never an outage."""
+    """Per-user daily message cap (cost guardrail): Redis when configured,
+    Postgres count otherwise — prod has no Redis, and a guardrail that
+    silently allows everything is not a guardrail."""
     import datetime
 
     limit = int(os.environ.get("CHAT_DAILY_LIMIT", "100"))
-    try:
-        import redis
+    count = None
+    if os.environ.get("REDIS_URL"):
+        try:
+            import redis
 
-        r = redis.Redis.from_url(
-            os.environ.get("REDIS_URL", "redis://localhost:6379"), socket_timeout=2
+            r = redis.Redis.from_url(os.environ["REDIS_URL"], socket_timeout=2)
+            key = f"rl:{uid}:{datetime.date.today().isoformat()}"
+            count = r.incr(key)
+            if count == 1:
+                r.expire(key, 90000)  # a bit over a day
+        except Exception:
+            count = None
+    if count is None:
+        try:
+            with psycopg.connect(DATABASE_URL) as conn:
+                count = conn.execute(
+                    "SELECT count(*) FROM messages m JOIN chats c USING (thread_id) "
+                    "WHERE c.uid=%s AND m.role='user' "
+                    "AND m.created_at > now() - interval '1 day'",
+                    (uid,),
+                ).fetchone()[0] + 1
+        except Exception:
+            return  # counting failed — never turn the guardrail into an outage
+    if count > limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily limit of {limit} messages reached — resets at midnight.",
         )
-        key = f"rl:{uid}:{datetime.date.today().isoformat()}"
-        count = r.incr(key)
-        if count == 1:
-            r.expire(key, 90000)  # a bit over a day
-        if count > limit:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Daily limit of {limit} messages reached — resets at midnight.",
-            )
-    except HTTPException:
-        raise
-    except Exception:
-        pass
 
 
 @app.post("/agent/chat")

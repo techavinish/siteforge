@@ -119,7 +119,12 @@ colors, layout, pages, the logo, or switching how enquiries reach them."""
 
 
 def respond(state: AgentState) -> dict:
-    missing = [f for f in REQUIRED_BRIEF_FIELDS if not state.get("brief", {}).get(f)]
+    brief = state.get("brief", {})
+    missing = [f for f in REQUIRED_BRIEF_FIELDS if not brief.get(f)]
+    # email-mode gates on the address — the prompt must know WHY the
+    # brief is incomplete, or it has nothing left to ask about
+    if brief.get("booking") == "email" and not brief.get("email"):
+        missing.append("email (the address their contact form will deliver to)")
     model = chat_model(INTERVIEW_MODEL, temperature=0.6)
     result = model.invoke(
         [SystemMessage(RESPOND_SYSTEM)]
@@ -349,6 +354,13 @@ def write(state: AgentState) -> dict:
             f"Page: {page['title']} ({page['path']}) — {page['purpose']}\n"
             f"Sections: {page['sections']}"
         )
+        mode = (state["spec"].get("contact") or {}).get("mode", "")
+        if "contact" in page["path"] and mode in ("tracker", "email"):
+            what = "booking form" if mode == "tracker" else "contact form"
+            prompt += (
+                f"\nA working {what} is appended below your copy automatically — "
+                "end the page leading into it; do NOT write your own form."
+            )
         if feedback:
             prompt += f"\nA reviewer said: {feedback}\nFix those issues this time."
         if state.get("edit_target") == "copy" and state.get("edit_request") and state.get("revisions", 0) == 0:

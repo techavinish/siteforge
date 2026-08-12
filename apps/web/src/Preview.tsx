@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { agentUrl, authFetch, idToken } from "./api";
 import { IconExpand, IconGlobeSm, IconInbox, IconX } from "./icons";
 import Bookings from "./Bookings";
@@ -59,6 +59,9 @@ export default function Preview({
   useEffect(() => {
     idToken().then(setFrameToken);
   }, [threadId, active]);
+
+  // stable identity: Bookings refetches on load-change, not on every render
+  const onCounts = useCallback((c: { new: number }) => setNewCount(c.new), []);
 
   // switching conversations = a different business's workspace
   useEffect(() => {
@@ -146,7 +149,7 @@ export default function Preview({
 
       {pubError && <div className="publish-toast" role="alert">{pubError}</div>}
       {tab === "bookings" ? (
-        <Bookings threadId={threadId} onCounts={(c) => setNewCount(c.new)} />
+        <Bookings threadId={threadId} onCounts={onCounts} />
       ) : (
         <div className="frame-wrap">
           {frameLoading && (

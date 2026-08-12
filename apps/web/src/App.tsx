@@ -389,9 +389,9 @@ export default function App() {
     }
 
     // a logo can ride along with (or without) words — the agent is told
-    // in plain language so the brief picks it up naturally
+    // in plain language so the brief picks it up naturally. Cleared only
+    // after the upload SUCCEEDS: a failed send must not eat the file.
     const logo = pendingLogo;
-    setPendingLogo(null);
     const text = raw.trim() || "I've uploaded our logo — please use it on the site.";
     const myTid = tid; // everything below is scoped to THIS thread
     setInput("");
@@ -420,6 +420,7 @@ export default function App() {
           const j = await up.json().catch(() => ({ detail: "logo upload failed" }));
           throw new Error(j.detail ?? "logo upload failed");
         }
+        setPendingLogo(null);
       }
       const token = await user.getIdToken();
       const res = await authFetch("/agent/chat", {

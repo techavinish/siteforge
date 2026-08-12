@@ -6,11 +6,18 @@ deploy_site will publish the very same documents to Firebase Hosting —
 one renderer, zero drift between preview and production.
 """
 
+import html
 import re
 from datetime import datetime, timezone
 from string import Template
 
 import markdown as md
+
+
+def _attr(value: str) -> str:
+    """Attribute-context escaping — a site named O"Brien's must not
+    break out of its own markup."""
+    return html.escape(str(value or ""), quote=True)
 
 
 def _repair_links(body: str, page_paths: list[str], path: str, mode: str) -> str:
@@ -307,8 +314,8 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
     image = (active or {}).get("image")
     if image:
         hero = (
-            f'<div class="hero-img"><img src="{image["url"]}" '
-            f'alt="{image.get("alt", "")}" loading="lazy"></div>'
+            f'<div class="hero-img"><img src="{_attr(image["url"])}" '
+            f'alt="{_attr(image.get("alt", ""))}" loading="lazy"></div>'
         )
     any_photos = any(p.get("image") for p in page_list)
 
@@ -319,7 +326,7 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
     )
     # the owner's uploaded logo replaces the initial mark everywhere
     if spec.get("logo_url"):
-        brand_mark = f'<img class="logo-img" src="{spec["logo_url"]}" alt="{site_name} logo">'
+        brand_mark = f'<img class="logo-img" src="{_attr(spec["logo_url"])}" alt="{_attr(site_name)} logo">'
     else:
         brand_mark = f'<span class="mark">{(site_name.strip()[:1] or "•").upper()}</span>'
 
