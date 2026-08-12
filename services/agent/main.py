@@ -798,7 +798,17 @@ def chat(body: ChatIn, uid: str = Depends(current_uid)):
     def events():
         try:
             yield from run_events()
-        except Exception as e:  # the stream must never just go silent
+        except Exception as e:  # the stream must never just go silent —
+            # and never invisibly either: full traceback to logs + Sentry
+            import traceback
+
+            traceback.print_exc()
+            try:
+                import sentry_sdk
+
+                sentry_sdk.capture_exception(e)
+            except Exception:
+                pass
             text = str(e)
             if "free-models-per-day" in text or "429" in text:
                 friendly = (

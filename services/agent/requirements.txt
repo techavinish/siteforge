@@ -1,7 +1,12 @@
 fastapi==0.115.*
 uvicorn[standard]==0.32.*
-langgraph==0.2.*
-langgraph-checkpoint-postgres==2.0.*
+# pinned as a COHERENT trio — langgraph 0.2.x with the checkpoint stack of
+# its own era. Newer langgraph-checkpoint (2.1+) changed pending_sends
+# handling: Send objects leak raw into the Jsonb checkpoint write and every
+# parallel fan-out dies with "Object of type Send is not JSON serializable".
+langgraph==0.2.76
+langgraph-checkpoint==2.0.16
+langgraph-checkpoint-postgres==2.0.15
 langchain-openai==0.2.*
 psycopg[binary]==3.2.*
 markdown==3.*
