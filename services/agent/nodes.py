@@ -28,6 +28,16 @@ REQUIRED_BRIEF_FIELDS = [
 # captured when mentioned, never demanded — they make CTAs genuinely work
 OPTIONAL_BRIEF_FIELDS = ["phone", "email", "has_logo"]
 
+def _flat(v):
+    """Brief values are plain strings. Models return arrays/objects at
+    will; flatten instead of crashing (booleans pass through for has_logo)."""
+    if isinstance(v, list):
+        return ", ".join(str(x) for x in v if x)
+    if isinstance(v, dict):
+        return ", ".join(f"{k}: {x}" for k, x in v.items() if x)
+    return v
+
+
 # The interview is SPLIT into two nodes so the user-visible half can stream:
 #   understand — silent JSON extraction (the "thinking" step; unstreamable)
 #   respond    — pure prose written for the owner (streamed token-by-token)
@@ -47,6 +57,8 @@ Only set it when the owner has actually chosen. "has_logo": true when they
 say they uploaded or attached their logo.
 
 Respond with ONLY JSON: {{"brief": {{...every field learned so far...}},
+Every field value must be a PLAIN STRING (never an array or object) —
+offerings is one comma-separated string.
 "complete": true/false,
 "edit_target": "when the site ALREADY EXISTS and the latest message asks for a
  change, classify it: images (photo/picture changes) | copy (text/wording) |
@@ -72,12 +84,18 @@ def understand(state: AgentState) -> dict:
     except ValueError:
         data = {"brief": state.get("brief", {}), "complete": False}
     last_user = next(
-        (m.content for m in reversed(state["messages"]) if m.type == "human"), ""
+        (text_of(m.content) for m in reversed(state["messages"]) if m.type == "human"), ""
     )
     # merge, never replace: models often return only the latest turn's
-    # fields, and a partial extraction must not erase earlier answers
+    # fields, and a partial extraction must not erase earlier answers.
+    # Values are FLATTENED to strings — models emit arrays at will
+    # ('offerings': ['photography']) and a list in the brief poisons
+    # every downstream regex/split until the checkpoint dies.
     extracted = data.get("brief") or {}
-    merged = {**state.get("brief", {}), **{k: v for k, v in extracted.items() if v}}
+    merged = {
+        **{k: _flat(v) for k, v in state.get("brief", {}).items()},  # heal old checkpoints
+        **{k: _flat(v) for k, v in extracted.items() if v},
+    }
     if merged.get("booking") not in ("tracker", "email", "none", None, ""):
         merged["booking"] = ""  # model drift never fabricates a mode
     return {
@@ -226,7 +244,7 @@ def plan(state: AgentState) -> dict:
     # contact details ride on the spec deterministically — the renderer
     # turns them into a working form and tappable actions
     spec["contact"] = {
-        k: state["brief"].get(k, "") for k in ("phone", "email", "location")
+        k: str(_flat(state["brief"].get(k, "")) or "") for k in ("phone", "email", "location")
     }
     # the form the site carries is the OWNER'S choice, resolved in code:
     # tracker → SiteForge booking form feeding their dashboard;
@@ -236,12 +254,12 @@ def plan(state: AgentState) -> dict:
         booking = "email" if spec["contact"].get("email") else "none"
     spec["contact"]["mode"] = booking
     # offerings become the booking form's service choices (split in code,
-    # never by the model — a hallucinated service list helps nobody)
+    # never by the model — a hallucinated service list helps nobody).
+    # str() because old checkpoints may still carry offerings as a list.
     import re as _re
 
-    services = [
-        s.strip(" .") for s in _re.split(r"[,;/\n]|\band\b", state["brief"].get("offerings", ""))
-    ]
+    offerings = str(_flat(state["brief"].get("offerings", "")) or "")
+    services = [s.strip(" .") for s in _re.split(r"[,;/\n]|\band\b", offerings)]
     spec["services"] = [s for s in services if 2 < len(s) < 60][:8]
     return {"spec": spec, "phase": "planning"}
 
@@ -385,8 +403,22 @@ def _validate_spec(spec: dict, brief: dict) -> dict:
     renderable spec. Code checks what code can check."""
     import re as _re
 
-    spec.setdefault("site_name", brief.get("business_name", "Your Business"))
+    # every string-typed field is COERCED to str — the model may emit any
+    # field as an array, and .lower()/.strip()/re downstream must not die
+    spec["site_name"] = str(
+        _flat(spec.get("site_name")) or _flat(brief.get("business_name")) or "Your Business"
+    )
     theme = spec.setdefault("theme", {})
+    if not isinstance(theme, dict):
+        theme = spec["theme"] = {}
+    theme["mood"] = str(_flat(theme.get("mood", "")) or "")
+    fonts = theme.get("fonts")
+    if not isinstance(fonts, dict):
+        fonts = {}
+    theme["fonts"] = {
+        "heading": str(_flat(fonts.get("heading")) or ""),
+        "body": str(_flat(fonts.get("body")) or ""),
+    }
     if not _re.fullmatch(r"#[0-9a-fA-F]{6}", str(theme.get("primary_color", ""))):
         theme["primary_color"] = "#2f4f4f"
     try:
@@ -397,9 +429,9 @@ def _validate_spec(spec: dict, brief: dict) -> dict:
         theme["layout"] = "classic"
     pages = [p for p in spec.get("pages", []) if isinstance(p, dict) and p.get("path")]
     for p in pages:
-        p["path"] = "/" + p["path"].strip("/") if p["path"] != "/" else "/"
-        p.setdefault("title", p["path"].strip("/").title() or "Home")
-        p.setdefault("purpose", "")
+        p["path"] = "/" + str(p["path"]).strip("/") if p["path"] != "/" else "/"
+        p["title"] = str(_flat(p.get("title")) or p["path"].strip("/").title() or "Home")
+        p["purpose"] = str(_flat(p.get("purpose")) or "")
         p.setdefault("sections", [])
     paths = {p["path"] for p in pages}
     if "/" not in paths:
