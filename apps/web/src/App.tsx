@@ -355,6 +355,9 @@ export default function App() {
     setPhase(null);
     setAtBottom(true);
     setSuggestions([]);
+    // the welcome screen must be PRISTINE — no leftover live stream
+    setThinks([]);
+    setStreamText("");
     setStarters(pickStarters()); // fresh suggestions every time
     history.pushState(null, "", "#/");
   }
@@ -401,7 +404,11 @@ export default function App() {
     requestAnimationFrame(scrollToBottom); // your own message never lands off-screen
     setBusy(true);
     setSuggestions([]);
-    const onThread = () => activeThread.current === myTid || activeThread.current === null && myTid === thread;
+    // strict gate: this stream may only touch the UI while ITS thread is
+    // the active one. "New chat" nulls activeThread — that must mean
+    // "drop everything", never "assume we're still here".
+    activeThread.current = myTid;
+    const onThread = () => activeThread.current === myTid;
 
     // plain variables survive the read loop; state exists only to render
     let acc = "";
@@ -514,8 +521,9 @@ export default function App() {
       await loadChats(user);
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {
-        // user pressed stop — keep whatever already streamed
-        if (acc || liveThinks.length) {
+        // user pressed stop — keep whatever already streamed, but ONLY
+        // in this stream's own chat (New chat aborts must leave nothing)
+        if (onThread() && (acc || liveThinks.length)) {
           setMsgs((m) => [
             ...m,
             {

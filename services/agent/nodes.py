@@ -271,7 +271,8 @@ def illustrate(state: AgentState) -> dict:
     from images import find_image
 
     spec = dict(state["spec"])
-    business = state["brief"].get("business_type", "business")
+    brief = state["brief"]
+    business = brief.get("business_type", "business")
     editing = state.get("edit_target") == "images"
     hint = state.get("edit_request", "") if editing else ""
     pages = []
@@ -283,6 +284,22 @@ def illustrate(state: AgentState) -> dict:
         )
         if img:
             p["image"] = img
+        # the home page earns a GALLERY: three more shots from different
+        # angles of the business's world — proof in pictures, deduped
+        if p["path"] == "/":
+            seen = {(p.get("image") or {}).get("url")}
+            shots = []
+            for q in (
+                f"{business} {_flat(brief.get('offerings', ''))}",
+                f"{business} detail close up",
+                f"{business} {_flat(brief.get('target_customers', ''))}",
+            ):
+                s = find_image(f"{q} {hint}".strip())
+                if s and s["url"] not in seen:
+                    shots.append(s)
+                    seen.add(s["url"])
+            if shots:
+                p["shots"] = shots[:3]
         pages.append(p)
     spec["pages"] = pages
     return {"spec": spec, "phase": "illustrating"}
@@ -295,11 +312,21 @@ customer's vocabulary, specificity over adjectives (a verifiable detail beats
 "high quality" every time). The headline must pass the "so what" test in three
 seconds and could belong to no other business.
 
-Write the FINAL copy for ONE page as clean Markdown that renders directly as
-the website:
+Write the FINAL copy for ONE page as clean Markdown. The renderer turns your
+STRUCTURE into the site's DESIGN, so structure is a design decision:
 
-- Start with # (the page's hero headline), then one bold tagline line.
-- Then ## sections with real content: short paragraphs, bullet lists where natural.
+- Start with # (the hero headline, under 9 words), then EXACTLY ONE bold
+  **tagline** line, then at most one short paragraph and one CTA link —
+  that whole block becomes the hero.
+- Then 3-5 ## sections. VARY their shape — this creates the page's rhythm:
+  * a bullet list of 3-6 SHORT items (each "**Name** — one line") renders
+    as a card grid: use it for services, offerings, or process steps.
+  * a > blockquote renders as a large centered testimonial band — include
+    one on the home page, quoting a plausible named customer, with the
+    attribution as an *italic* line inside the quote.
+  * plain short paragraphs render as breathing space between the above.
+- End the page with a final short section that makes the ask (one or two
+  sentences + the CTA link).
 - Calls to action are markdown links that render as buttons. They must point
   ONLY at pages that exist in this site's plan, using the exact path —
   e.g. [Book a Class](/contact) or [See the Menu](/menu). NEVER link to
