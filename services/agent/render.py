@@ -92,12 +92,11 @@ def _is_stat(item_inner: str) -> tuple[str, str] | None:
         return None
     big = re.sub(r"<[^>]+>", "", m.group(1)).strip()
     label = re.sub(r"<[^>]+>", "", m.group(2)).strip()
-    # "number-ish": has a digit, or a tiny word like "24/7" / "Free"
-    if not label or len(big) > 16:
+    # a STAT's lead must be a NUMBER (12 yrs, 8,000+, 48 hr, 100%) — a bare
+    # word like "Sourdough" is a feature name, not a statistic
+    if not label or len(big) > 16 or not re.search(r"\d", big):
         return None
-    if re.search(r"\d", big) or len(big.split()) == 1:
-        return (big, label)
-    return None
+    return (big, label)
 
 
 def _statify(section_html: str) -> str | None:
@@ -273,6 +272,12 @@ PAGE = Template("""<!doctype html>
   }
   * { box-sizing: border-box; margin: 0; }
   body { font-family: "$body_font", system-ui, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.7; }
+  /* a whisper of the brand colour behind the top of the page — depth, not decoration */
+  body::before {
+    content: ""; position: fixed; inset: 0 0 auto; height: 60vh; z-index: -1; pointer-events: none;
+    background: radial-gradient(120% 80% at 80% -20%,
+      color-mix(in srgb, var(--accent) 9%, transparent), transparent 60%);
+  }
   img { max-width: 100%; display: block; }
   ::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 
@@ -345,12 +350,18 @@ PAGE = Template("""<!doctype html>
     gap: 16px; margin: 1.4em 0 0.6em; }
   .card {
     background: var(--bg); border: 1px solid var(--soft);
-    border-radius: calc(var(--radius) * 1.3); padding: 20px 22px;
+    border-radius: calc(var(--radius) * 1.3); padding: 22px 24px;
     font-size: 0.95rem; line-height: 1.6;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
   }
   .band.tint .card { background: var(--bg); }
   .band:not(.tint) .card { background: var(--surface); border-color: transparent; }
-  .card > strong:first-child { display: block; font-size: 1.02rem; margin-bottom: 6px; color: var(--ink); }
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    box-shadow: 0 12px 30px color-mix(in srgb, var(--ink) 12%, transparent);
+  }
+  .card > strong:first-child { display: block; font-size: 1.05rem; margin-bottom: 6px; color: var(--accent); }
 
   /* stats: instant proof a business is established */
   .stats-band { padding-top: clamp(30px, 4vw, 52px); padding-bottom: clamp(30px, 4vw, 52px); }
@@ -366,9 +377,12 @@ PAGE = Template("""<!doctype html>
   .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
     gap: 18px; margin: 1.4em 0 0.4em; counter-reset: step; }
   .step { position: relative; padding: 22px 22px 22px 22px;
-    background: var(--bg); border: 1px solid var(--soft); border-radius: calc(var(--radius) * 1.3); }
+    background: var(--bg); border: 1px solid var(--soft); border-radius: calc(var(--radius) * 1.3);
+    transition: transform .16s ease, box-shadow .16s ease; }
   .band.tint .step { background: var(--bg); }
   .band:not(.tint) .step { background: var(--surface); border-color: transparent; }
+  .step:hover { transform: translateY(-3px);
+    box-shadow: 0 12px 30px color-mix(in srgb, var(--ink) 12%, transparent); }
   .step-n { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-bottom: 12px;
     border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; font-size: 0.95rem; }
   .step-b > *:first-child { margin-top: 0; }

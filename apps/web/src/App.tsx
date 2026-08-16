@@ -20,7 +20,21 @@ type Msg = {
   thinking?: ThinkBlock[];
   attachment?: "site";
   error?: boolean; // failed turn — rendered as a card with retry
+  at?: string; // ISO timestamp — subtle, hover-revealed
 };
+
+/** "14:32" today, "Mon 14:32" this week, "12 Aug" older — a quiet product
+ *  signal, shown on hover so it never clutters the reading flow. */
+function clock(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const t = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const days = (Date.now() - d.getTime()) / 86400000;
+  if (days < 1 && d.getDate() === new Date().getDate()) return t;
+  if (days < 7) return `${d.toLocaleDateString([], { weekday: "short" })} ${t}`;
+  return d.toLocaleDateString([], { day: "numeric", month: "short" });
+}
 
 /** All agent markdown flows through here: parsed once, sanitized always.
  *  marked passes raw HTML straight through — never trust model output
@@ -399,7 +413,7 @@ export default function App() {
     const myTid = tid; // everything below is scoped to THIS thread
     setInput("");
     if (composerRef.current) composerRef.current.style.height = "auto";
-    setMsgs((m) => [...m, { role: "user", text }]);
+    setMsgs((m) => [...m, { role: "user", text, at: new Date().toISOString() }]);
     setAtBottom(true);
     requestAnimationFrame(scrollToBottom); // your own message never lands off-screen
     setBusy(true);
@@ -483,6 +497,7 @@ export default function App() {
                 role: "agent",
                 text: acc,
                 thinking: liveThinks.length ? [...liveThinks] : undefined,
+                at: new Date().toISOString(),
               };
               acc = "";
               liveThinks = [];
@@ -497,6 +512,7 @@ export default function App() {
                 text: data.reply,
                 thinking: liveThinks.length ? [...liveThinks] : undefined,
                 attachment: data.node === "deliver" ? "site" : undefined,
+                at: new Date().toISOString(),
               };
               liveThinks = [];
               setThinks([]);
@@ -748,7 +764,10 @@ export default function App() {
         >
           {msgs.map((m, i) =>
             m.role === "user" ? (
-              <div key={i} className="bubble user">{m.text}</div>
+              <div key={i} className="bubble-row user">
+                <div className="bubble user">{m.text}</div>
+                {m.at && <time className="msg-time">{clock(m.at)}</time>}
+              </div>
             ) : m.error ? (
               <div key={i} className="msg-error" role="alert">
                 <span>{m.text}</span>
@@ -780,6 +799,7 @@ export default function App() {
                       <IconRetry />
                     </button>
                   )}
+                  {m.at && <time className="msg-time">{clock(m.at)}</time>}
                 </div>
                 {m.attachment === "site" && draft && (
                   <button className="site-card" onClick={() => setPreviewOpen((o) => !o)}>

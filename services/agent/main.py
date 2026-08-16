@@ -389,7 +389,7 @@ def chat_messages(thread_id: str, cursor: str = "", limit: int = 50, uid: str = 
     own_thread(thread_id, uid)
     """Latest page first; cursor (a message id) walks backwards in history."""
     limit = min(max(limit, 1), 200)
-    sql = "SELECT id, role, content, thinking, attachment FROM messages WHERE thread_id=%s"
+    sql = "SELECT id, role, content, thinking, attachment, created_at FROM messages WHERE thread_id=%s"
     params: list = [thread_id]
     if cursor:
         sql += " AND id < %s"
@@ -406,7 +406,8 @@ def chat_messages(thread_id: str, cursor: str = "", limit: int = 50, uid: str = 
     if rows:
         return {
             "items": [
-                {"role": r[1], "text": r[2], "thinking": r[3], "attachment": r[4]}
+                {"role": r[1], "text": r[2], "thinking": r[3], "attachment": r[4],
+                 "at": r[5].isoformat()}
                 for r in rows
             ],
             "next_cursor": str(rows[0][0]) if more else None,
