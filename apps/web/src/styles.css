@@ -383,19 +383,27 @@ button.primary:disabled { opacity: 0.45; }
   .shimmer { animation: none; color: var(--ink); background: none; }
 }
 .think-body {
-  margin: 6px 0 2px 8px; padding: 2px 0 2px 16px;
-  border-left: 2px solid var(--line);
-  max-height: 220px; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 14px;
+  margin: 8px 0 2px 6px; padding: 4px 0 4px 4px;
+  max-height: 260px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px;
 }
-.think-section .think-label {
-  display: block; font-family: var(--font-mono); font-size: 0.64rem;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--accent); opacity: 0.85; margin-bottom: 5px;
+/* clean step rows — a dot rail, a friendly name, and (writer only) the
+   copy as it streams. No raw JSON ever reaches the reader. */
+.think-step { display: flex; gap: 10px; align-items: flex-start; }
+.step-dot {
+  flex: none; width: 7px; height: 7px; margin-top: 7px; border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 30%, transparent);
 }
-.think-section pre {
+.step-dot.on { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.step-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.step-name { font-size: 0.8rem; color: var(--ink); opacity: 0.78; }
+.think.live .think-step:last-child .step-name { opacity: 1; }
+.step-copy {
   margin: 0; white-space: pre-wrap; word-break: break-word;
-  font: inherit; font-size: 0.73rem; line-height: 1.6; opacity: 0.62;
+  font: inherit; font-size: 0.76rem; line-height: 1.6; opacity: 0.55;
+  max-height: 120px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
 }
 /* full-screen reading view */
 .think-modal {
