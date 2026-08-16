@@ -313,20 +313,39 @@ customer's vocabulary, specificity over adjectives (a verifiable detail beats
 seconds and could belong to no other business.
 
 Write the FINAL copy for ONE page as clean Markdown. The renderer turns your
-STRUCTURE into the site's DESIGN, so structure is a design decision:
+STRUCTURE into the site's DESIGN, so structure is a design decision. A real
+business site is SUBSTANTIAL — thin pages read as fake. Write with depth.
+
+LENGTH: the home page must be 450-750 words across 5-7 sections. Other pages
+250-500 words. Every section is 2-4 real sentences of specific, concrete
+content — never a single line, never filler.
 
 - Start with # (the hero headline, under 9 words), then EXACTLY ONE bold
-  **tagline** line, then at most one short paragraph and one CTA link —
+  **tagline** line, then one vivid 1-2 sentence paragraph and one CTA link —
   that whole block becomes the hero.
-- Then 3-5 ## sections. VARY their shape — this creates the page's rhythm:
-  * a bullet list of 3-6 SHORT items (each "**Name** — one line") renders
-    as a card grid: use it for services, offerings, or process steps.
-  * a > blockquote renders as a large centered testimonial band — include
-    one on the home page, quoting a plausible named customer, with the
-    attribution as an *italic* line inside the quote.
-  * plain short paragraphs render as breathing space between the above.
-- End the page with a final short section that makes the ask (one or two
-  sentences + the CTA link).
+- Then 5-7 ## sections. VARY their shape deliberately — the variety IS the
+  design. Use SEVERAL different shapes from this palette:
+  * PROOF — a bullet list where each item is "**<number or short fact>** —
+    <label>" (e.g. "**500+** — Weddings captured", "**10 yrs** — Experience",
+    "**48 hr** — Sneak-peek delivery"). Renders as a big-number stats band.
+    Put one near the top of the home page: nothing says "real business" faster.
+  * SERVICES / FEATURES — a bullet list of 3-6 items, each "**Name** — one
+    concrete sentence". Renders as a card grid.
+  * PROCESS — a NUMBERED list (1. 2. 3.) of 3-5 steps, each "**Step name** —
+    what happens". Renders as numbered step cards. Great for "How it works".
+  * TESTIMONIALS — two or more > blockquotes in one ## section, each quoting a
+    plausible NAMED customer with an *italic* attribution line inside the
+    quote. Renders as a testimonial grid. Include real, specific praise.
+  * FAQ — a ## section whose heading contains "FAQ" or "Questions", with
+    ### question lines each followed by a 1-2 sentence answer. Renders as an
+    accordion. Include 3-5 genuine questions a customer of THIS business asks.
+  * PROSE — short paragraphs (with ### subheadings when useful) for story,
+    philosophy, or "why us" — concrete and specific, never generic.
+- The home page SHOULD include at least: a proof/stats band, a services or
+  process section, a testimonials section, and (if it fits the business) a
+  short FAQ. Build a real, complete page.
+- End every page with a final short section that makes the ask (a sentence or
+  two + the CTA link).
 - Calls to action are markdown links that render as buttons. They must point
   ONLY at pages that exist in this site's plan, using the exact path —
   e.g. [Book a Class](/contact) or [See the Menu](/menu). NEVER link to
@@ -517,18 +536,20 @@ Respond with ONLY JSON:
 
 def critique(state: AgentState) -> dict:
     model = chat_model(INTERVIEW_MODEL, temperature=0.2)
-    result = model.invoke(
-        [
-            SystemMessage(CRITIQUE_SYSTEM),
-            ("user", f"Brief: {state['brief']}\n\nDraft pages: {state['pages']}"),
-        ]
-    )
     try:
+        result = model.invoke(
+            [
+                SystemMessage(CRITIQUE_SYSTEM),
+                ("user", f"Brief: {state['brief']}\n\nDraft pages: {state['pages']}"),
+            ]
+        )
         verdict = extract_json(result.content)
         if not isinstance(verdict.get("pages"), dict):
             verdict["pages"] = {}
-    except ValueError:
-        verdict = {"score": 7, "pages": {}}  # unparseable critic never blocks delivery
+    except Exception:
+        # a rate-limited or unparseable critic must NEVER discard a site that
+        # already generated — ship it with a passing default, skip revision
+        verdict = {"score": 7, "pages": {}}
     return {"critique": verdict, "revisions": state.get("revisions", 0) + 1, "phase": "critiquing"}
 
 

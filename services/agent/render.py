@@ -73,12 +73,96 @@ def _cardify(section_html: str) -> str:
         items = re.findall(r"<li>(.*?)</li>", m.group(0), re.DOTALL)
         if not (3 <= len(items) <= 8):
             return m.group(0)
-        if any(len(re.sub(r"<[^>]+>", "", it).strip()) > 220 for it in items):
+        if any(len(re.sub(r"<[^>]+>", "", it).strip()) > 260 for it in items):
             return m.group(0)
         cards = "".join(f'<div class="card">{it.strip()}</div>' for it in items)
         return f'<div class="cards">{cards}</div>'
 
     return re.sub(r"<ul>.*?</ul>", repl, section_html, flags=re.DOTALL)
+
+
+_STAT_LEAD = re.compile(r"^\s*<strong>\s*([^<]{1,18})</strong>\s*[—:–-]?\s*(.*)$", re.DOTALL)
+
+
+def _is_stat(item_inner: str) -> tuple[str, str] | None:
+    """A list item like '**200+** — Weddings captured' is a STAT: a short
+    bold lead (number-ish) then a label. Returns (big, label) or None."""
+    m = _STAT_LEAD.match(item_inner.strip())
+    if not m:
+        return None
+    big = re.sub(r"<[^>]+>", "", m.group(1)).strip()
+    label = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+    # "number-ish": has a digit, or a tiny word like "24/7" / "Free"
+    if not label or len(big) > 16:
+        return None
+    if re.search(r"\d", big) or len(big.split()) == 1:
+        return (big, label)
+    return None
+
+
+def _statify(section_html: str) -> str | None:
+    """Turn a bullet list of stat items into a big-number proof band."""
+    m = re.search(r"<ul>.*?</ul>", section_html, re.DOTALL)
+    if not m:
+        return None
+    items = re.findall(r"<li>(.*?)</li>", m.group(0), re.DOTALL)
+    stats = [_is_stat(it) for it in items]
+    if len(items) < 2 or not all(stats):
+        return None
+    cells = "".join(
+        f'<div class="stat"><span class="stat-n">{_attr(b)}</span>'
+        f'<span class="stat-l">{_attr(l)}</span></div>'
+        for b, l in stats
+    )
+    grid = f'<div class="stats">{cells}</div>'
+    return re.sub(r"<ul>.*?</ul>", grid, section_html, flags=re.DOTALL)
+
+
+def _stepify(section_html: str) -> str:
+    """An ordered list of 3-6 items is a PROCESS — render as numbered steps."""
+
+    def repl(m: re.Match) -> str:
+        items = re.findall(r"<li>(.*?)</li>", m.group(0), re.DOTALL)
+        if not (3 <= len(items) <= 6):
+            return m.group(0)
+        steps = "".join(
+            f'<div class="step"><span class="step-n">{i}</span>'
+            f'<div class="step-b">{it.strip()}</div></div>'
+            for i, it in enumerate(items, 1)
+        )
+        return f'<div class="steps">{steps}</div>'
+
+    return re.sub(r"<ol>.*?</ol>", repl, section_html, flags=re.DOTALL)
+
+
+def _faqify(section_html: str) -> str:
+    """### question + following block become a native <details> accordion."""
+    parts = re.split(r"(<h3>.*?</h3>)", section_html, flags=re.DOTALL)
+    out, i = [parts[0]], 1
+    while i < len(parts):
+        q = re.sub(r"</?h3>", "", parts[i]).strip()
+        a = parts[i + 1] if i + 1 < len(parts) else ""
+        out.append(f"<details><summary>{q}</summary><div class='faq-a'>{a}</div></details>")
+        i += 2
+    return "".join(out)
+
+
+def _quote_grid(section_html: str) -> str:
+    """Two or more testimonials read better side by side than stacked.
+    python-markdown collapses consecutive > quotes into ONE blockquote with
+    a <p> per testimonial, so split on paragraphs, not blockquote tags."""
+    blocks = re.findall(r"<blockquote>(.*?)</blockquote>", section_html, re.DOTALL)
+    paras: list[str] = []
+    for b in blocks:
+        paras += re.findall(r"<p>.*?</p>", b, re.DOTALL)
+    if len(paras) < 2:
+        return section_html  # a single quote stays the big centered band
+    cards = "".join(f"<blockquote>{p}</blockquote>" for p in paras)
+    grid = f'<div class="quote-grid">{cards}</div>'
+    # replace the whole run of blockquotes with the grid, in place
+    return re.sub(
+        r"<blockquote>.*</blockquote>", grid, section_html, count=1, flags=re.DOTALL
+    )
 
 
 def _hero_html(hero_md: str, image: dict | None, layout: str) -> str:
@@ -125,13 +209,50 @@ def _gallery_html(shots: list[dict]) -> str:
     return f'<section class="band gallery"><div class="wrap"><div class="shots">{figs}</div></div></section>'
 
 
-def _section_html(section_md: str, tint: bool) -> str:
-    body = _cardify(_md(section_md))
+def _classify(section_md: str) -> str:
+    """Map a section's markdown SHAPE to its band kind — the writer picks
+    the shape (stat list, ordered list, ## FAQ, blockquotes), code renders
+    each as a distinct designed band. Returns one of:
+    stats | steps | faq | quotes | plain."""
+    heading = ""
+    m = re.search(r"^##\s+(.*)$", section_md, re.M)
+    if m:
+        heading = m.group(1).lower()
+    if "faq" in heading or "question" in heading:
+        return "faq"
+    if re.search(r"^\s*>", section_md, re.M):
+        return "quotes"
+    if re.search(r"^\s*\d+\.\s", section_md, re.M):
+        return "steps"
+    body = _md(section_md)
+    if _statify(body):
+        return "stats"
+    return "plain"
+
+
+def _section_html(section_md: str, kind: str, tint: bool) -> str:
+    body = _md(section_md)
     classes = ["band"]
-    if "<blockquote>" in body:
-        classes.append("quotes")  # quote bands carry their own surface
-    elif tint:
+    if kind == "stats":
+        body = _statify(body) or body
+        classes.append("stats-band")
         classes.append("tint")
+    elif kind == "steps":
+        body = _stepify(body)
+        if tint:
+            classes.append("tint")
+    elif kind == "faq":
+        body = _faqify(body)
+        classes.append("faq")
+        if tint:
+            classes.append("tint")
+    elif kind == "quotes":
+        body = _quote_grid(body)
+        classes.append("quotes")  # carries its own surface
+    else:
+        body = _cardify(body)
+        if tint:
+            classes.append("tint")
     return f'<section class="{" ".join(classes)}"><div class="wrap">{body}</div></section>'
 
 
@@ -231,7 +352,45 @@ PAGE = Template("""<!doctype html>
   .band:not(.tint) .card { background: var(--surface); border-color: transparent; }
   .card > strong:first-child { display: block; font-size: 1.02rem; margin-bottom: 6px; color: var(--ink); }
 
+  /* stats: instant proof a business is established */
+  .stats-band { padding-top: clamp(30px, 4vw, 52px); padding-bottom: clamp(30px, 4vw, 52px); }
+  .stats-band h2 { text-align: center; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px; margin-top: 1em; text-align: center; }
+  .stat { display: flex; flex-direction: column; gap: 4px; }
+  .stat-n { font-family: "$head_font", serif; font-size: clamp(2rem, 4.4vw, 3rem);
+    line-height: 1; color: var(--accent); font-weight: 700; }
+  .stat-l { font-size: 0.85rem; color: var(--muted); }
+
+  /* process: a numbered path, not a bare list */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 18px; margin: 1.4em 0 0.4em; counter-reset: step; }
+  .step { position: relative; padding: 22px 22px 22px 22px;
+    background: var(--bg); border: 1px solid var(--soft); border-radius: calc(var(--radius) * 1.3); }
+  .band.tint .step { background: var(--bg); }
+  .band:not(.tint) .step { background: var(--surface); border-color: transparent; }
+  .step-n { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-bottom: 12px;
+    border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; font-size: 0.95rem; }
+  .step-b > *:first-child { margin-top: 0; }
+  .step-b strong { display: block; margin-bottom: 4px; }
+
+  /* FAQ: native disclosure, styled */
+  .band.faq .wrap { max-width: 760px; }
+  .band.faq details { border-bottom: 1px solid var(--soft); padding: 4px 0; }
+  .band.faq summary { cursor: pointer; list-style: none; padding: 16px 34px 16px 2px;
+    position: relative; font-weight: 600; font-size: 1.02rem; }
+  .band.faq summary::-webkit-details-marker { display: none; }
+  .band.faq summary::after { content: "+"; position: absolute; right: 6px; top: 14px;
+    font-size: 1.4rem; color: var(--accent); line-height: 1; transition: transform .2s ease; }
+  .band.faq details[open] summary::after { content: "\\2212"; }
+  .band.faq .faq-a { padding: 0 2px 16px; color: var(--muted); }
+  .band.faq .faq-a > *:first-child { margin-top: 0; }
+
   /* testimonials: a voice, not a box */
+  .quote-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; text-align: left; }
+  .quote-grid blockquote { max-width: none; margin: 0; padding: 24px 26px;
+    background: var(--bg); border-radius: calc(var(--radius) * 1.3); font-size: 1.05rem; }
+  .quote-grid blockquote::before { font-size: 2.2rem; }
   .band.quotes { text-align: center; background: var(--surface); }
   .band.quotes blockquote {
     max-width: 46ch; margin: 1em auto; padding: 0;
@@ -471,14 +630,15 @@ def build_site_html(spec: dict, pages: dict, path: str, mode: str = "preview") -
     parts = [_hero_html(hero_md, image, layout)]
 
     shots = (active or {}).get("shots") or []
-    # tint alternates over PLAIN bands only — quote bands bring their own
-    # surface, and two matching neighbours would kill the rhythm
-    sections, plain_count = [], 0
+    # tint alternates over ORDINARY bands only — stats/quotes bring their
+    # own surface, so they're skipped in the rhythm count
+    sections, tintable = [], 0
     for s in section_mds:
-        is_quote = bool(re.search(r"^\s*>", s, re.M))
-        sections.append(_section_html(s, tint=not is_quote and plain_count % 2 == 1))
-        if not is_quote:
-            plain_count += 1
+        kind = _classify(s)
+        owns_surface = kind in ("stats", "quotes")
+        sections.append(_section_html(s, kind, tint=not owns_surface and tintable % 2 == 1))
+        if not owns_surface:
+            tintable += 1
     if shots:
         # the gallery lands after the first section — proof right after the pitch
         sections.insert(min(1, len(sections)), _gallery_html(shots))
