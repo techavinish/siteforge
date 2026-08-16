@@ -5,10 +5,27 @@ import re
 
 from langchain_openai import ChatOpenAI
 
-from config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL
+from config import (
+    CHEAP_LLM_API_KEY,
+    CHEAP_LLM_BASE_URL,
+    INTERVIEW_MODEL,
+    OPENROUTER_API_KEY,
+    OPENROUTER_BASE_URL,
+)
 
 
 def chat_model(model: str, temperature: float = 0.7) -> ChatOpenAI:
+    """Pick the endpoint from the model TIER: the cheap-tier model can live
+    on a separate base URL (e.g. a local Ollama) so it never spends the
+    OpenRouter daily budget. Everything else talks to OpenRouter. Both are
+    OpenAI-compatible, so one client class serves both."""
+    if CHEAP_LLM_BASE_URL and model == INTERVIEW_MODEL:
+        return ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            api_key=CHEAP_LLM_API_KEY,
+            base_url=CHEAP_LLM_BASE_URL,
+        )
     return ChatOpenAI(
         model=model,
         temperature=temperature,

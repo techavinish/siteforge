@@ -7,7 +7,7 @@ separation is the entire point of LangGraph over a freeform agent loop.
 
 from langchain_core.messages import AIMessage, SystemMessage
 
-from config import INTERVIEW_MODEL, WRITER_MODEL
+from config import INTERVIEW_MODEL, PLAN_MODEL, WRITER_MODEL
 from llm import chat_model, extract_json, text_of
 from state import AgentState
 
@@ -204,7 +204,8 @@ Respond with ONLY JSON:
 
 
 def plan(state: AgentState) -> dict:
-    model = chat_model(INTERVIEW_MODEL, temperature=0.5)
+    # planning IS a design decision — quality tier, not the cheap one
+    model = chat_model(PLAN_MODEL, temperature=0.5)
     # the planner designs WITH the design-craft knowledge, not from vibes
     craft = _retrieve_guidelines(state["brief"], topic="design")
     messages = [SystemMessage(PLAN_SYSTEM)]
